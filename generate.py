@@ -54,8 +54,6 @@ contains = [
     'com.latmod.mods.projectex.gui.GuiTableBase:updateValidItemList()V',  # Project EX
     'net.minecraft.client.gui.screen.inventory.CreativeScreen:func_147053_i()V',  # Vanilla
     'net.minecraft.client.gui.screen.inventory.CreativeScreen:func_214080_a(Ljava/lang/String;)V',  # Vanilla
-    'amerifrance.guideapi.gui.GuiSearch:getMatches:(Lamerifrance.guideapi.api.impl.Book;Ljava.lang.String;Lnet.minecraft.entity.player.EntityPlayer;Lnet.minecraft.item.ItemStack;)Ljava.util.List;',  # Guide-API
-    'thaumcraft.client.gui.GuiResearchBrowser:updateSearch:()V',  # Thaumcraft
     'zuve.searchablechests.ChestEventHandler:stackMatches(Ljava/lang/String;Lnet/minecraft/item/ItemStack;)Z',  # Searchable Chests
     'mekanism.common.content.qio.SearchQueryParser$QueryType:lambda$null$5(Ljava/lang/String;Ljava/lang/String;)Z',  # Mekanism (QIO)
     'mekanism.common.content.qio.SearchQueryParser$QueryType:lambda$null$3(Ljava/lang/String;Ljava/lang/String;)Z',  # Mekanism (QIO)
@@ -76,7 +74,6 @@ contains = [
     'me.shedaniel.rei.impl.client.search.argument.type.ModArgumentType:matches(Lorg/apache/commons/lang3/mutable/Mutable;Lme/shedaniel/rei/api/common/entry/EntryStack;Ljava/lang/String;Lnet/minecraft/util/Unit;)Z',  # REI
     'me.shedaniel.rei.impl.client.search.argument.type.TooltipArgumentType:matches(Lorg/apache/commons/lang3/mutable/Mutable;Lme/shedaniel/rei/api/common/entry/EntryStack;Ljava/lang/String;Lnet/minecraft/util/Unit;)Z',  # REI
     'me.shedaniel.rei.impl.client.search.argument.type.TextArgumentType:matches(Lorg/apache/commons/lang3/mutable/Mutable;Lme/shedaniel/rei/api/common/entry/EntryStack;Ljava/lang/String;Lnet/minecraft/util/Unit;)Z',  # REI
-    'com.cout970.magneticraft.features.multiblocks.ContainerShelvingUnit$filterSlots$1:invoke:(Lnet.minecraft.item.ItemStack;Ljava.lang.String;)Z',  # Magneticraft
     'vazkii.quark.client.module.ChestSearchingModule:namesMatch(Lnet/minecraft/item/ItemStack;Ljava/lang/String;)Z',  # Quark legacy
     'vazkii.quark.content.client.module.ChestSearchingModule:namesMatch(Lnet/minecraft/item/ItemStack;Ljava/lang/String;)Z',  # Quark
     'me.shedaniel.clothconfig2.forge.gui.entries.DropdownBoxEntry$DefaultDropdownMenuElement:search()V',  # Cloth Config
@@ -84,6 +81,7 @@ contains = [
     'mezz.jei.search.ElementSearchLowMem:matches(Ljava/lang/String;Lmezz/jei/search/PrefixInfo;Lmezz/jei/ingredients/IIngredientListElementInfo;)Z',  # JEI (low memory)
     'com.github.klikli_dev.occultism.client.gui.storage.StorageControllerGuiBase:itemMatchesSearch(Lnet/minecraft/item/ItemStack;)Z', # Occultism
     'com.github.klikli_dev.occultism.client.gui.storage.StorageControllerGuiBase:machineMatchesSearch(Lcom/github/klikli_dev/occultism/api/common/data/MachineReference;)Z', # Occultism
+    'de.ellpeck.prettypipes.terminal.containers.ItemTerminalGui:lambda$updateWidgets$8(Ljava/lang/String;Lorg/apache/commons/lang3/tuple/Pair;)Z', # Pretty Pipes Terminal
 ]
 equals = [
     'vazkii.botania.api.corporea.CorporeaRequestDefaultMatchers$CorporeaStringMatcher:equalOrContain(Ljava/lang/String;)Z',  # Botania (Corporea)
