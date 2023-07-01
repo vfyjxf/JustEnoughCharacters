@@ -37,19 +37,18 @@ public class JustEnoughCharacters {
         Greetings.send(logger, MODID);
     }
 
-    @SuppressWarnings("resource")
     public static void printMessage(ITextComponent message) {
-        Minecraft.getInstance().ingameGUI.getChatGUI().printChatMessage(message);
+        Minecraft.getInstance().gui.getChat().addMessage(message);
     }
 
     @Mod.EventBusSubscriber
     static class EventHandler {
         @SubscribeEvent
         public static void onPlayerLogin(EntityJoinWorldEvent event) {
-            if (event.getEntity() instanceof PlayerEntity && event.getEntity().world.isRemote
+            if (event.getEntity() instanceof PlayerEntity && event.getEntity().level.isClientSide
                     && JechConfig.enableChat.get() && !messageSent
                     && (JechConfig.enumKeyboard.get() == QUANPIN)
-                    && Minecraft.getInstance().gameSettings.language.equals("zh_tw")) {
+                    && "zh_tw".equals(Minecraft.getInstance().options.languageCode)) {
                 printMessage(new TranslationTextComponent("jecharacters.chat.taiwan"));
                 messageSent = true;
             }

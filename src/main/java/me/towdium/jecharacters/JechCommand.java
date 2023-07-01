@@ -103,7 +103,7 @@ public class JechCommand {
     @SubscribeEvent
     public static void onOpenGui(GuiScreenEvent.InitGuiEvent event) {
         if (event.getGui() instanceof ChatScreen) {
-            RootCommandNode<ISuggestionProvider> root = getPlayer().connection.getCommandDispatcher().getRoot();
+            RootCommandNode<ISuggestionProvider> root = getPlayer().connection.getCommands().getRoot();
             if (root.getChild("jech") == null) root.addChild(builder.build());
         }
     }
@@ -111,11 +111,11 @@ public class JechCommand {
     @SubscribeEvent
     @SuppressWarnings("resource")
     public static void onCommand(ClientChatEvent event) {
-        CommandSource cs = getPlayer().getCommandSource();
+        CommandSource cs = getPlayer().createCommandSourceStack();
         String msg = event.getMessage();
         if (msg.startsWith("/jech ") || msg.equals("/jech")) {
             event.setCanceled(true);
-            Minecraft.getInstance().ingameGUI.getChatGUI().addToSentMessages(msg);
+            Minecraft.getInstance().gui.getChat().addRecentChat(msg);
 
             try {
                 StringReader stringreader = new StringReader(msg);
@@ -124,22 +124,22 @@ public class JechCommand {
                 dispatcher.execute(parse);
             } catch (CommandSyntaxException e) {
                 // copied and modified from net.minecraft.command.Commands
-                cs.sendErrorMessage(TextComponentUtils.toTextComponent(e.getRawMessage()));
+                cs.sendFailure(TextComponentUtils.fromMessage(e.getRawMessage()));
                 if (e.getInput() != null && e.getCursor() >= 0) {
                     int k = Math.min(e.getInput().length(), e.getCursor());
                     StringTextComponent tc1 = new StringTextComponent("");
-                    tc1.mergeStyle(GRAY).modifyStyle(i ->
-                            i.setClickEvent(new ClickEvent(SUGGEST_COMMAND, event.getMessage())));
-                    if (k > 10) tc1.appendString("...");
-                    tc1.appendString(e.getInput().substring(Math.max(0, k - 10), k));
+                    tc1.withStyle(GRAY).withStyle(i ->
+                            i.withClickEvent(new ClickEvent(SUGGEST_COMMAND, event.getMessage())));
+                    if (k > 10) tc1.append("...");
+                    tc1.append(e.getInput().substring(Math.max(0, k - 10), k));
                     if (k < e.getInput().length()) {
                         ITextComponent tc2 = (new StringTextComponent(e.getInput().substring(k)))
-                                .mergeStyle(RED, UNDERLINE);
+                                .withStyle(RED, UNDERLINE);
                         tc1.getSiblings().add(tc2);
                     }
                     tc1.getSiblings().add((new TranslationTextComponent("command.context.here"))
-                            .mergeStyle(RED, ITALIC));
-                    cs.sendErrorMessage(tc1);
+                            .withStyle(RED, ITALIC));
+                    cs.sendFailure(tc1);
                 }
             }
         }
