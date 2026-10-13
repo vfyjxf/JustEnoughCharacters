@@ -1,10 +1,24 @@
 # JECh compatibility tests — the `jt` harness, shipped as this branch's
 # `compat-tests/` submodule.
 #
+# This workflow runs on the workstation's own machine through a self-hosted
+# runner (`runs-on: [self-hosted, macOS]`), because a run launches a real
+# Minecraft client and there is no Linux runner here.
+#
+# The runner MUST be installed as a USER-level launchd agent inside a logged-in
+# GUI session: `./svc.sh install <user>` + `./svc.sh start` registers a
+# LaunchAgent that inherits the GUI session. A system-level LaunchDaemon has no
+# WindowServer session, so Prism cannot create a window and every launch fails.
+# Bootstrap checklist — registering the runner, the runner's own `.env`, the
+# secret and the first-run expectations — is in compat-tests/README.md, "CI".
+#
 # There is deliberately no `push` trigger: the same policy as the CloudMods
 # client-tests. A run resolves and downloads mods and then launches real
 # Minecraft clients, so hanging it off every bump would burn a runner on every
 # commit. Dispatch it by hand from the Actions tab instead.
+#
+# Default selection for this branch: "tag:1211" — the `selection` input's own
+# default, described below.
 name: compat-tests
 
 on:
@@ -28,7 +42,10 @@ concurrency:
 jobs:
   compat-tests:
     name: jt run
-    runs-on: ubuntu-latest
+    # The workstation's own self-hosted runner: the game window has to be able to
+    # appear in its GUI session, and the runs use the JDKs and the Prism Launcher
+    # installed on this machine.
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 90
     env:
       # All jt state (HTTP/mod cache, Prism data root, instances, run reports)
@@ -36,7 +53,11 @@ jobs:
       # (runs_dir = jt_home()/"runs"). The submodule's parent directory IS the
       # branch checkout, so $JT_JECH_ROOT is the root the envs' jech.project
       # checkouts are found under — compat-tests/lib/resolve.py:224.
-      JT_HOME: ${{ runner.temp }}/jt-home
+      #
+      # JT_HOME itself is deliberately NOT set here: a workflow `env:` cannot read
+      # the runner's own environment, and a CI data root must not be hard-coded in
+      # a checked-in file. The run step takes it from the runner-level variable
+      # `JT_HOME_CI` instead (see "Run compat tests").
       JT_JECH_ROOT: ${{ github.workspace }}
     steps:
       - name: Check out the branch and the compat-tests submodule
@@ -44,55 +65,55 @@ jobs:
         with:
           submodules: recursive
 
-      # JDK for the Gradle wrapper (Gradle 8.13 here). The Minecraft client itself
-      # is launched by jt with the per-env JDK it resolves — see the note in the
-      # run step.
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
+      # No actions/setup-java and no actions/setup-python: both exist to
+      # provision a toolchain on a bare hosted runner and add nothing on a
+      # self-hosted one — this machine already has python3 (3.9+, everything jt
+      # needs) and the JDKs (8/17/21/25) on the login session's PATH, resolved
+      # through /usr/libexec/java_home. Gradle comes from the branch's own wrapper.
+      #
+      # The wrapper is Gradle 8.13 here, which cannot run on Java 25 — and 25 is
+      # the runner's default JDK — so this step pins JAVA_HOME to JDK 21. A
+      # step-level `env:` value takes no command substitution, so the lookup
+      # (`/usr/libexec/java_home -v 21`) happens in the shell line and JAVA_HOME is
+      # exported there. The Minecraft client itself is launched by jt with the
+      # per-env JDK it resolves — see the note in the run step.
       - name: Build the mod (jt runs the jar straight from the build directory)
-        run: ./gradlew build
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      # Xvfb and software GL: the runner has neither a display nor a GPU, but jt
-      # really launches a client (`prismlauncher -d <root> --launch <instance>`)
-      # and follows the game log.
-      # TODO(P5): `prismlauncher` is not guaranteed to be in the Ubuntu archive
-      # for every runner image. The fallback is NOT decided yet and must not be
-      # guessed — a Flathub/appimage install has a different CLI name and a
-      # sandbox that breaks `-d <root>`. Pin one deliberately, then drop this note.
-      - name: Install Prism Launcher and Xvfb
+        env:
+          GRADLE_JAVA_MAJOR: "21"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y prismlauncher xvfb
-          # If the client cannot start for want of software GL, the runner also
-          # needs mesa/llvmpipe (compat-tests/README.md, "CI") — likewise TODO(P5).
+          export JAVA_HOME="$(/usr/libexec/java_home -v "$GRADLE_JAVA_MAJOR")"
+          echo "Gradle JAVA_HOME=$JAVA_HOME"
+          ./gradlew build
 
-      # TODO(P5): seed an offline account into the Prism root.
-      # A fresh runner's $JT_HOME/prism holds no Minecraft account, so the launch
-      # stops at the account picker and the run fails at launch (jt's `internal:`
-      # checks report it and keep the launcher log tail). A workstation data root
-      # that was already initialised does not have this problem. How CI should
-      # seed an offline/dummy account is NOT decided yet (compat-tests/README.md,
-      # "CI"), so this step is a deliberate no-op: until then a CI run needs a
-      # real logged-in account in that root.
-      - name: "TODO(P5): seed a Minecraft account into the Prism root (no-op for now)"
-        run: |
-          echo "TODO(P5): no account seed yet - see compat-tests/README.md 'CI'"
-
+      # There is no account-seeding step any more: the CI data root ships a real
+      # Microsoft `accounts.json` (Data/jech-compat-ci/prism/, mode 600, never
+      # committed, never printed). An offline/dummy account cannot work — Prism
+      # raises its first-run wizard unless an account that owns Minecraft is
+      # present — so the root is seeded from a logged-in one; see
+      # compat-tests/README.md, "CI".
       - name: Run compat tests
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           SELECTION: ${{ inputs.selection }}
         run: |
           set -euo pipefail
+
+          # CI runs on its own data root, handed over by the runner as a
+          # runner-level environment variable (the runner's `.env`, see
+          # compat-tests/README.md "CI"). Two reasons: no absolute workstation
+          # path is baked into a checked-in workflow, and a CI run can never fight
+          # a manual `jt run` over the same Prism data root — Prism lets only one
+          # process own a data root at a time (a second `--launch` becomes a
+          # handoff to the running launcher, which the runner reports instead of
+          # silently passing).
+          : "${JT_HOME_CI:?JT_HOME_CI 未配置：在 runner 的 .env 里设置}"
+          export JT_HOME="$JT_HOME_CI"
+          # Republish the root for later steps: $GITHUB_ENV feeds the `env`
+          # context, so the upload step can say $JT_HOME/runs without repeating
+          # the path.
+          echo "JT_HOME=$JT_HOME" >> "$GITHUB_ENV"
+          echo "jt data root: $JT_HOME"
+          echo "note: a fresh data root warms itself on first use (vanilla jars, assets, libraries) - a slow first run is expected"
 
           # The input is "<include> [<exclude>]". `jt run` takes ONE expression
           # plus a separate `--exclude` flag (compat-tests/lib/__main__.py), so
@@ -110,18 +131,23 @@ jobs:
             args+=(--exclude "$exclude")
           fi
 
-          # NOTE (known CI gap, TODO(P5)): a Linux runner has no
-          # /usr/libexec/java_home, so jt resolves each env's JDK from
-          # JT_JAVA_<N>_HOME, else JAVA_HOME (compat-tests/lib/instance.py:286).
-          # setup-java only provides JAVA_HOME, so an env asking for a java major
-          # other than the one installed above needs JT_JAVA_<N>_HOME wired up.
-          xvfb-run --auto-servernum "${args[@]}"
+          # No display wrapper: this is a macOS GUI session, so Prism opens a
+          # real window and the client runs on the real GL stack — the
+          # `xvfb-run` wrapper the Linux workflow needed is gone.
+          #
+          # JDK lookup needs nothing extra here: jt resolves each env's JDK itself
+          # through /usr/libexec/java_home (compat-tests/lib/instance.py) and
+          # re-checks the answer against the JDK's own `release` file, so this
+          # branch's java-21 envs reach the installed JDK 21 with no
+          # JT_JAVA_21_HOME.
+          "${args[@]}"
 
       - name: Upload run reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jt-runs-${{ github.ref_name }}
-          # lib/paths.py:111 — runs_dir() is $JT_HOME/runs, JT_HOME is set above.
+          # lib/paths.py:111 — runs_dir() is $JT_HOME/runs. JT_HOME was published
+          # to $GITHUB_ENV by the run step, i.e. it is the runner's JT_HOME_CI.
           path: ${{ env.JT_HOME }}/runs
           if-no-files-found: warn
