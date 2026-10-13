@@ -1,0 +1,4 @@
+[submodule "compat-tests"]
+	path = compat-tests
+	url = /Users/vfyjxf/ModdingGround/Project/JechGround/compat-tests
+	branch = compat-tests

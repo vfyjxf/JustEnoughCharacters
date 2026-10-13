@@ -1,0 +1,127 @@
+# JECh compatibility tests — the `jt` harness, shipped as this branch's
+# `compat-tests/` submodule.
+#
+# There is deliberately no `push` trigger: the same policy as the CloudMods
+# client-tests. A run resolves and downloads mods and then launches real
+# Minecraft clients, so hanging it off every bump would burn a runner on every
+# commit. Dispatch it by hand from the Actions tab instead.
+name: compat-tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      selection:
+        description: >-
+          jt selection. The first expression includes, an optional second
+          expression excludes: "tag:1211" selects both 1.21.1 envs. Terms inside
+          one expression are comma-separated and OR-ed.
+        required: false
+        default: "tag:1211"
+        type: string
+
+# One heavy run at a time per branch; a second dispatch queues instead of
+# doubling the load on the runner.
+concurrency:
+  group: compat-tests-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compat-tests:
+    name: jt run
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # All jt state (HTTP/mod cache, Prism data root, instances, run reports)
+      # lives under JT_HOME — compat-tests/lib/paths.py:77 (jt_home), :110
+      # (runs_dir = jt_home()/"runs"). The submodule's parent directory IS the
+      # branch checkout, so $JT_JECH_ROOT is the root the envs' jech.project
+      # checkouts are found under — compat-tests/lib/resolve.py:224.
+      JT_HOME: ${{ runner.temp }}/jt-home
+      JT_JECH_ROOT: ${{ github.workspace }}
+    steps:
+      - name: Check out the branch and the compat-tests submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # JDK for the Gradle wrapper (Gradle 8.13 here). The Minecraft client itself
+      # is launched by jt with the per-env JDK it resolves — see the note in the
+      # run step.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build the mod (jt runs the jar straight from the build directory)
+        run: ./gradlew build
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Xvfb and software GL: the runner has neither a display nor a GPU, but jt
+      # really launches a client (`prismlauncher -d <root> --launch <instance>`)
+      # and follows the game log.
+      # TODO(P5): `prismlauncher` is not guaranteed to be in the Ubuntu archive
+      # for every runner image. The fallback is NOT decided yet and must not be
+      # guessed — a Flathub/appimage install has a different CLI name and a
+      # sandbox that breaks `-d <root>`. Pin one deliberately, then drop this note.
+      - name: Install Prism Launcher and Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y prismlauncher xvfb
+          # If the client cannot start for want of software GL, the runner also
+          # needs mesa/llvmpipe (compat-tests/README.md, "CI") — likewise TODO(P5).
+
+      # TODO(P5): seed an offline account into the Prism root.
+      # A fresh runner's $JT_HOME/prism holds no Minecraft account, so the launch
+      # stops at the account picker and the run fails at launch (jt's `internal:`
+      # checks report it and keep the launcher log tail). A workstation data root
+      # that was already initialised does not have this problem. How CI should
+      # seed an offline/dummy account is NOT decided yet (compat-tests/README.md,
+      # "CI"), so this step is a deliberate no-op: until then a CI run needs a
+      # real logged-in account in that root.
+      - name: "TODO(P5): seed a Minecraft account into the Prism root (no-op for now)"
+        run: |
+          echo "TODO(P5): no account seed yet - see compat-tests/README.md 'CI'"
+
+      - name: Run compat tests
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          SELECTION: ${{ inputs.selection }}
+        run: |
+          set -euo pipefail
+
+          # The input is "<include> [<exclude>]". `jt run` takes ONE expression
+          # plus a separate `--exclude` flag (compat-tests/lib/__main__.py), so
+          # the optional second expression is handed to --exclude. `read -a`
+          # word-splits without globbing, so an `all`/`*` selection can never
+          # expand against the checkout itself — and without interpreting shell
+          # quotes either, so write regex terms bare (commas separate the terms of
+          # one expression), e.g. `regex:^mv-1\.1(6|8)\.2- tag:experimental`.
+          read -r -a selection <<< "$SELECTION"
+          include="${selection[0]:-}"
+          exclude="${selection[*]:1}"
+
+          args=(python3 compat-tests/jt run "$include")
+          if [ -n "$exclude" ]; then
+            args+=(--exclude "$exclude")
+          fi
+
+          # NOTE (known CI gap, TODO(P5)): a Linux runner has no
+          # /usr/libexec/java_home, so jt resolves each env's JDK from
+          # JT_JAVA_<N>_HOME, else JAVA_HOME (compat-tests/lib/instance.py:286).
+          # setup-java only provides JAVA_HOME, so an env asking for a java major
+          # other than the one installed above needs JT_JAVA_<N>_HOME wired up.
+          xvfb-run --auto-servernum "${args[@]}"
+
+      - name: Upload run reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jt-runs-${{ github.ref_name }}
+          # lib/paths.py:111 — runs_dir() is $JT_HOME/runs, JT_HOME is set above.
+          path: ${{ env.JT_HOME }}/runs
+          if-no-files-found: warn
