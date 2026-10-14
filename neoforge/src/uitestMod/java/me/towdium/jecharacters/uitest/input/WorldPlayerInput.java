@@ -16,6 +16,8 @@ import net.minecraft.client.Options;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.neoforged.neoforge.client.ClientHooks;
+import net.neoforged.neoforge.client.extensions.IKeyMappingExtension;
+import net.neoforged.neoforge.client.settings.KeyModifier;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -130,11 +132,28 @@ final class WorldPlayerInput implements PlayerInput {
             logger.warn("[uitest] bind {} is unbound; the press cannot go through the real path", mapping.getName());
             return;
         }
-        if (InputConstants.Type.MOUSE == mapping.getKey().getType()) {
-            mouseDown(key);
-            mouseUp(key);
-        } else {
-            pressKey(key);
+        // A mapping a mod declared with a modifier (NeoForge's KeyModifier, written into
+        // options.txt as the ":CONTROL" suffix) only answers while that modifier counts as held.
+        // "Held" is read through Screen.hasControlDown() and friends, which the harness's virtual
+        // key state answers for — so the modifier is held as a real key for the press and released
+        // afterwards, exactly as a player's chord would be. A vanilla bind carries NONE and this
+        // loop is empty, which is why the plain binds behave as they always did.
+        int[] modifiers = modifierKeysOf(mapping);
+        int mask = modifierMaskOf(modifiers);
+        for (int modifier : modifiers) {
+            holdKey(modifier);
+        }
+        try {
+            if (InputConstants.Type.MOUSE == mapping.getKey().getType()) {
+                mouseDown(key);
+                mouseUp(key);
+            } else {
+                pressKey(key, mask);
+            }
+        } finally {
+            for (int i = modifiers.length - 1; i >= 0; i--) {
+                releaseKey(modifiers[i]);
+            }
         }
     }
 
@@ -228,6 +247,41 @@ final class WorldPlayerInput implements PlayerInput {
             return key.getValue();
         }
         return -1;
+    }
+
+    /**
+     * The GLFW keys a mapping's own modifier spells.
+     *
+     * <p>NeoForge's {@code KeyModifier} is where a mod records "this bind needs Ctrl"; its
+     * {@code codes()} answers with the keys that count (Cmd on macOS, where the platform's control
+     * chord is the command key). A vanilla mapping has {@code NONE}, whose {@code codes()} is empty.
+     */
+    private static int[] modifierKeysOf(KeyMapping mapping) {
+        if (!(mapping instanceof IKeyMappingExtension extension)) {
+            return new int[0];
+        }
+        KeyModifier modifier = extension.getKeyModifier();
+        if (modifier == null) return new int[0];
+        List<Integer> keys = new ArrayList<>(2);
+        for (InputConstants.Key code : modifier.codes()) {
+            if (code.getType() == InputConstants.Type.KEYSYM && code.getValue() != InputConstants.UNKNOWN.getValue()) {
+                keys.add(code.getValue());
+            }
+        }
+        int[] result = new int[keys.size()];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = keys.get(i);
+        }
+        return result;
+    }
+
+    /** The GLFW modifier mask a set of held modifier keys contributes. */
+    private static int modifierMaskOf(int[] keys) {
+        int mask = 0;
+        for (int key : keys) {
+            mask |= Keys.modifierMaskOf(key);
+        }
+        return mask;
     }
 
     private static KeyMapping require(Function<Options, KeyMapping> bind) {

@@ -12,10 +12,25 @@
 //
 // The properties travel to the client as system properties, not program arguments, because
 // Minecraft's own argument parser rejects arguments it does not know.
+//
+// The run honours -PjechRunDir the way the plain client run does, so the compatibility harness (jt)
+// can drive it inside a game directory of its own; -PjechTest then says which scenarios to run, and
+// the report, the captures and junit.xml are written next to the game (see the locals below).
 
 // The output directory is captured as locals: inside a run or task closure the script's own
 // properties are not the closure's delegate, so a script-level name would not resolve there.
-def jechUiTestOutDir = rootProject.file('runs/client-tests')
+//
+// -PjechRunDir is the compatibility harness's redirect (jt's gradle backend passes it, see
+// compat-tests/lib/instance.py): the harness run gets that game directory instead of its own, and
+// the run's output follows the game into <game dir>/uitest. That keeps a jt run's report, screenshots
+// and junit.xml inside the run directory jt builds, archives and cleans — and it keeps the clean task
+// (which deletes the output directory before the run) away from the game directory itself, so a
+// seeded world a jt run staged there is never the thing that gets deleted. Without the property
+// nothing changes: the harness keeps runs/client-tests, the way every run before jt did.
+def jechUiTestRunDir = project.findProperty('jechRunDir')?.toString()
+def jechUiTestOutDir = jechUiTestRunDir == null
+        ? rootProject.file('runs/client-tests')
+        : new File(jechUiTestRunDir, 'uitest')
 def jechUiTestSelection = project.findProperty('jechTest')?.toString()
 def jechUiTestExclude = project.findProperty('jechTestExclude')?.toString() ?: ''
 def jechUiTestGuiScale = project.findProperty('jechTestGuiScale')?.toString()
@@ -122,7 +137,15 @@ neoForge {
         // -PjechTest wiring lives here rather than on the plain client run.
         clientTests {
             client()
-            gameDirectory = jechUiTestOutDir
+            // The harness's own game directory, unless -PjechRunDir moved it (see the locals above).
+            // -PjechQuickPlayWorld is deliberately *not* honoured here: the runner stands up its own
+            // flat level (WorldBootstrap) and quits the client when it is done, so joining a world on
+            // launch would only race the world the scenarios are actually asserted against.
+            if (jechUiTestRunDir != null) {
+                gameDirectory = layout.dir(providers.provider { new File(jechUiTestRunDir) })
+            } else {
+                gameDirectory = jechUiTestOutDir
+            }
             // The mod under test puts PinIn on the *client* run's classpath through that run's own
             // classpath configuration (clientAdditionalRuntimeClasspath in neoforge/build.gradle),
             // which a second run does not inherit. PinIn is what JECh's own config classes load, so
@@ -163,6 +186,45 @@ def jechUiTestCleanReport = tasks.register('jechCleanUiTestReport', Delete) {
     group = 'verification'
     description = 'Deletes the previous JECh UI test run output.'
     delete jechUiTestOutDir
+}
+
+// The options.txt a run of this harness needs, written into the game directory Gradle owns. The
+// delete above takes the previous one with the rest of the output, so without this a harness run
+// boots on the client's fresh defaults (en_us, onboarding not done).
+//
+// Two keys, and only those (the same fixture lib/options.py stages for a jt run):
+//
+//   lang:zh_cn - the JEI scenarios assert that a pinyin query reaches a Chinese item name (石头).
+//                A client in en_us has no such names, so those scenarios would fail on a correct
+//                build. This is a fixture of the scenario, not a preference.
+//   onboardAccessibility:true - the "Welcome to Minecraft!" page is shown while this is false, and
+//                nothing in a run can press its Continue button.
+//
+// A key_* line must never be added here. This file carries no "version:" line, so the client's
+// Options.dataFix reads it as data-version 0 and runs the legacy chain, where OptionsKeyLwjgl3Fix
+// does Integer.parseInt on every key_* value; a modern binding with a modifier
+// ("key.keyboard.f:CONTROL") is not a number, the fixer throws, Options.load() catches it, and
+// EVERY option - lang included - stays at its default (measured 2026-10-14). The JEI focus key
+// needs no pinning anyway: a fresh game directory has no override, so the scenarios press JEI's own
+// registered default.
+//
+// A run handed a game directory by a launcher (-PjechRunDir, as jt does) is NOT preset from here:
+// that directory belongs to the launcher, which stages its own options.txt into it (jt's preset
+// carries the same two keys). Two writers of one file would only drift.
+def jechUiTestPresetOptions = tasks.register('jechPresetUiTestOptions') {
+    group = 'verification'
+    description = 'Writes the options.txt a bare harness run needs into the harness game directory.'
+    onlyIf { jechUiTestSelection != null && jechUiTestRunDir == null }
+    dependsOn jechUiTestCleanReport
+    def outDir = jechUiTestOutDir
+    inputs.property('jechUiTestOptions', 'onboardAccessibility:true\nlang:zh_cn\n')
+    outputs.file(new File(outDir, 'options.txt'))
+    doLast {
+        def preset = new File(outDir, 'options.txt')
+        preset.parentFile.mkdirs()
+        preset.text = 'onboardAccessibility:true\nlang:zh_cn\n'
+        logger.lifecycle("jechtest-uitest: preset ${preset} (${preset.text.trim().replace('\n', ', ')})")
+    }
 }
 
 def jechUiTestVerify = tasks.register('verifyJechUiTest') {
@@ -222,6 +284,8 @@ def jechUiTestVerify = tasks.register('verifyJechUiTest') {
 tasks.configureEach { task ->
     if (task.name != 'runClientTests' || jechUiTestSelection == null) return
     task.dependsOn jechUiTestCleanReport
+    // ordered after the delete, so the preset is not deleted with the rest of the output
+    task.dependsOn jechUiTestPresetOptions
     task.finalizedBy jechUiTestVerify
 }
 

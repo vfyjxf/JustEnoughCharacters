@@ -19,6 +19,7 @@ import me.towdium.jecharacters.uitest.engine.report.ReportWriter;
 import me.towdium.jecharacters.uitest.engine.report.RunReport;
 import me.towdium.jecharacters.uitest.engine.report.ScenarioReport;
 import me.towdium.jecharacters.uitest.engine.report.StepReport;
+import me.towdium.jecharacters.uitest.match.MatchRecorder;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
@@ -226,6 +227,7 @@ public final class UITestRunner {
         if (server != null) {
             serverContext = new ServerContext(server);
         }
+        startRecording();
         log.info("interactive run {} starting {} scenario(s)", runId, queue.size());
         driver.install();
         enter(Phase.nextScenario);
@@ -346,9 +348,25 @@ public final class UITestRunner {
             // the world the run creates up front IS the first group's session: nothing has run in it
             groupSessionStarted = true;
         }
+        startRecording();
         driver.install();
         enter(needsWorld ? Phase.createWorld : Phase.nextScenario);
         settle(resizeSettleMs);
+    }
+
+    /**
+     * Turns the match recorder on and reports any JSON scenario the scan could not read.
+     *
+     * <p>Recording is on for the whole of a run rather than per step, because a scenario's assertion
+     * is about what happened <em>before</em> it ran; the buffer is cleared as each scenario starts so
+     * one scenario's matches can never satisfy the next one's assertion.
+     */
+    private void startRecording() {
+        MatchRecorder.setEnabled(true);
+        for (String problem : ScenarioRegistry.registrationProblems()) {
+            log.error("jechtest-uitest: a JSON scenario could not be read and will fail if selected: {}", problem);
+        }
+        log.info(MatchRecorder.stats());
     }
 
     /**
@@ -656,6 +674,7 @@ public final class UITestRunner {
         }
         shuttingDown = true;
         driver.uninstall();
+        MatchRecorder.setEnabled(false);
         log.info("jechtest-uitest released the input seams; still installed={}", driver.installed());
         Status status = fatalMessage == null ? runStatus : Status.worst(runStatus, Status.error);
         report.complete(status, Instant.now().toString(), now() - startedAt);
@@ -680,6 +699,9 @@ public final class UITestRunner {
             minecraft.player.closeContainer();
         }
         minecraft.setScreen(null);
+        // the buffer is per scenario: an assertion is about the input this scenario just made, never
+        // about a match an earlier scenario happened to leave behind
+        MatchRecorder.clear();
         ScenarioOptions options = queued.options();
         minecraft.options.guiScale().set(options.guiScale(config.guiScale()));
         minecraft.options.hideGui = options.hideGui();

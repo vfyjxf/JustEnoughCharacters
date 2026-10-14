@@ -1,5 +1,7 @@
 package me.towdium.jecharacters.uitest.api;
 
+import me.towdium.jecharacters.uitest.match.MatchFilter;
+import me.towdium.jecharacters.uitest.match.MatchRecorder;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
@@ -63,6 +65,12 @@ public final class ScenarioBuilder {
     private static final String dragLastY = "jech.uitest.drag.lastY";
 
     private static final int doubleClickGapMs = 30;
+
+    /** How long a match assertion waits for a record before it fails, when the caller names none. */
+    private static final int defaultMatchWindowMs = 3_000;
+
+    /** How much longer than its own window a match assertion's step budget is, for the deciding frame. */
+    private static final int matchWindowSlackMs = 5_000;
 
     private final List<Step> steps = new ArrayList<>();
 
@@ -451,12 +459,22 @@ public final class ScenarioBuilder {
         return this;
     }
 
-    /** Releases a key. */
+    /**
+     * Releases a key.
+     *
+     * <p>The release goes to whatever is listening when it arrives, which is not necessarily the
+     * screen the press went to: a press can be the thing that closes its own screen (Escape closes a
+     * chat box, Enter sends the line and closes it). Dispatching the release at
+     * {@code screenOrThrow()} would turn that ordinary pair — and every scenario that closes a screen
+     * with a key — into "no screen is open", so with no screen open the release takes the in-world
+     * handler route instead, which is where a real release lands in that state. With a screen still
+     * open nothing changes.
+     */
     public ScenarioBuilder keyUp(int keyCode) {
         add(
             StepKind.keyUp,
             "keyUp " + keyName(keyCode),
-            context -> context.driver().keyUp(context.screenOrThrow(), keyCode, scanCodeOf(keyCode), 0)
+            context -> releaseKey(context, keyCode)
         );
         return this;
     }
@@ -602,6 +620,37 @@ public final class ScenarioBuilder {
     public ScenarioBuilder pressKey(int glfwKey) {
         embody();
         add(StepKind.embodyKey, "pressKey " + keyName(glfwKey), context -> context.playerInput().pressKey(glfwKey));
+        return this;
+    }
+
+    /**
+     * Presses and releases a key with the keys a modifier mask names held around it, all through the
+     * real keyboard handler.
+     *
+     * <p>The modifier keys are held as real keys rather than passed as a mask alone, because a mod's
+     * own bind asks the game whether the modifier "counts as held" — NeoForge's {@code KeyModifier}
+     * answers through {@code Screen.hasControlDown()}, which reads the harness's virtual key state.
+     * The mask is passed to the key press as well, so a handler that reads the event's modifiers
+     * directly sees the same thing.
+     *
+     * <p>Both halves matter for a chord into an overlay that is not a widget of the open screen —
+     * JEI's search bar is one — because that overlay only ever sees keys pressed through
+     * {@code KeyboardHandler}, which is also where NeoForge raises its screen key events.
+     */
+    public ScenarioBuilder pressKey(int glfwKey, int modifiers) {
+        embody();
+        int[] modifierKeys = modifierKeysOf(modifiers);
+        for (int modifier : modifierKeys) {
+            holdKey(modifier);
+        }
+        add(
+            StepKind.embodyKey,
+            "pressKey " + keyName(glfwKey) + (modifierKeys.length == 0 ? "" : " + " + modifiers),
+            context -> context.playerInput().pressKey(glfwKey, modifiers)
+        );
+        for (int i = modifierKeys.length - 1; i >= 0; i--) {
+            releaseKey(modifierKeys[i]);
+        }
         return this;
     }
 
@@ -979,6 +1028,82 @@ public final class ScenarioBuilder {
 
     // endregion
 
+    // region match recording
+
+    /** Turns the match recorder on or off; the engine leaves it on for the whole of a harness run. */
+    public ScenarioBuilder recordMatches(boolean enable) {
+        add(StepKind.action, "recordMatches " + enable, context -> {
+            MatchRecorder.setEnabled(enable);
+            context.log(MatchRecorder.stats());
+        });
+        return this;
+    }
+
+    /** Drops every comparison the recorder holds, so the next assertion sees only what follows. */
+    public ScenarioBuilder clearRecordedMatches() {
+        add(StepKind.action, "clearRecordedMatches", context -> {
+            MatchRecorder.clear();
+            context.log("match recorder cleared");
+        });
+        return this;
+    }
+
+    /**
+     * Asserts what the match recorder holds.
+     *
+     * <p>With {@code expect} set — the normal case — the step waits up to {@code withinMs} for a
+     * recorded comparison the filter accepts, and fails only when the budget runs out, so a search
+     * that lands a few frames after the keystroke is not a false red. With {@code expect} clear the
+     * step cannot wait (nothing arriving would make a wait succeed), so it decides on one attempt:
+     * failing the moment a recorded comparison <em>does</em> satisfy the filter.
+     *
+     * <p>A failure reports the tail of what was recorded, not just that nothing matched, because the
+     * difference between "the engine never saw this query" and "the engine saw it and answered no" is
+     * the whole diagnosis.
+     *
+     * @param filter   which recorded comparisons count
+     * @param expect   whether such a comparison must exist
+     * @param withinMs how long to wait for one, or {@code 0} for the default
+     */
+    public ScenarioBuilder assertMatchRecorded(MatchFilter filter, boolean expect, int withinMs) {
+        int budget = withinMs > 0 ? withinMs : defaultMatchWindowMs;
+        AtomicLong anchor = new AtomicLong(-1L);
+        String label = "match recorded " + (expect ? "for " : "for none of ") + filter.describe();
+        add(
+            StepKind.check,
+            "assertMatchRecorded " + (expect ? "" : "not ") + filter.describe(),
+            context -> {
+                long now = System.currentTimeMillis();
+                if (anchor.get() < 0L) {
+                    anchor.set(now);
+                }
+                MatchRecorder.Record found = MatchRecorder.newestMatching(filter);
+                if (!expect) {
+                    context.check(
+                        label,
+                        found == null,
+                        found == null ? "nothing matched" : "but " + found.describe() + " was recorded"
+                    );
+                    return;
+                }
+                if (found != null) {
+                    context.check(label, true, found.describe());
+                    return;
+                }
+                if (now - anchor.get() < budget) {
+                    context.repeat("waiting " + budget + " ms for " + filter.describe());
+                    return;
+                }
+                context.check(label, false, MatchRecorder.describeMiss(filter));
+            },
+            0,
+            budget + matchWindowSlackMs
+        );
+        return this;
+    }
+
+    // endregion
+
     // region timeline
 
     /**
@@ -1106,6 +1231,29 @@ public final class ScenarioBuilder {
 
     private static float lerp(double from, double to, float t) {
         return (float) (from + ((to - from) * t));
+    }
+
+    /**
+     * Delivers one key release to whatever is listening: the open screen, or the world.
+     *
+     * <p>With a screen open the release is the screen's, exactly as the press was. With none it goes
+     * through the in-world handler route ({@code KeyboardHandler.keyPress}), which is the path a real
+     * release takes once the screen that consumed the press has closed — and which is also what
+     * clears the harness's own record of the hold. A release with neither a screen nor a player has
+     * nothing that could receive it, and vanilla would drop it too; that case is written into the
+     * step's log rather than left to look like a key that was never released.
+     */
+    private static void releaseKey(TestContext context, int keyCode) {
+        Screen screen = context.screen();
+        if (screen != null) {
+            context.driver().keyUp(screen, keyCode, scanCodeOf(keyCode), 0);
+            return;
+        }
+        if (Minecraft.getInstance().player == null) {
+            context.log("keyUp " + keyName(keyCode) + ": no screen and no player, so nothing received it");
+            return;
+        }
+        context.playerInput().releaseKey(keyCode);
     }
 
     private static void dispatchDrag(TestContext context, float x, float y) {
