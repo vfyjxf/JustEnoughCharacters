@@ -1,0 +1,266 @@
+// The in-client UI test harness for JECh: the engine ported from CloudLib-InworldUI's uitestMod,
+// wired the way that harness's own gradle/cloudlib-uitest.gradle is wired.
+//
+// Applied from neoforge/build.gradle (as the last statement, so `version` is already set) with:
+//     apply from: rootProject.file('gradle/jech-uitest.gradle')
+// Every part of it is gated on -PjechTest, so an ordinary runClient, build or test is unaffected.
+//
+// The harness is a mod of its own — jechtest. Its engine, capture, input and mixin sources live in
+// the uitestMod source set, its @Mod entry point and mods.toml in uitestModEntry, and its scenarios
+// in uitest. The dedicated clientTests run is the only run that loads them: the plain client run and
+// every other dev run carry none of this, and the jecharacters jar has no harness class at all.
+//
+// The properties travel to the client as system properties, not program arguments, because
+// Minecraft's own argument parser rejects arguments it does not know.
+
+// The output directory is captured as locals: inside a run or task closure the script's own
+// properties are not the closure's delegate, so a script-level name would not resolve there.
+def jechUiTestOutDir = rootProject.file('runs/client-tests')
+def jechUiTestSelection = project.findProperty('jechTest')?.toString()
+def jechUiTestExclude = project.findProperty('jechTestExclude')?.toString() ?: ''
+def jechUiTestGuiScale = project.findProperty('jechTestGuiScale')?.toString()
+def jechUiTestWindow = project.findProperty('jechTestWindow')?.toString()
+def jechUiTestInputMode = project.findProperty('jechTestInputMode')?.toString()
+def jechUiTestWatchdogSec = project.findProperty('jechTestWatchdogSec')?.toString()
+def jechUiTestKeepOpen = project.hasProperty('jechTestKeepOpen')
+def jechUiTestHeadless = project.hasProperty('jechTestHeadless')
+def jechUiTestModVersion = project.version.toString()
+
+// The real input driver warps the OS cursor, which needs a visible, focused window. Rejected at
+// configuration time rather than quietly downgraded to the synthetic driver.
+if (jechUiTestHeadless && jechUiTestInputMode != null && jechUiTestInputMode.equalsIgnoreCase('REAL')) {
+    throw new GradleException(
+        '-PjechTestHeadless cannot be combined with -PjechTestInputMode=REAL: the real input driver '
+            + 'moves the OS cursor and needs a visible, focused window'
+    )
+}
+
+// The window size is given as WxH; anything else is ignored rather than guessed at.
+def jechUiTestWindowWidth = null
+def jechUiTestWindowHeight = null
+if (jechUiTestWindow != null) {
+    def parts = jechUiTestWindow.toLowerCase().split('x')
+    if (parts.length == 2) {
+        jechUiTestWindowWidth = parts[0].trim()
+        jechUiTestWindowHeight = parts[1].trim()
+    }
+}
+
+// The source sets the jechtest mod is built from.
+//
+// uitestMod is the harness engine — the frame pump, the scenario DSL, the input/capture seams, the
+// mixins and the jechtest.mixins.json the run applies — compiled against Minecraft and jecharacters;
+// uitest holds the scenarios, which ScenarioRegistry finds by scanning the loaded mods' annotations.
+// The jar task packages sourceSets.main only, so nothing here can reach the shipped artifact.
+//
+// uitestModEntry is the mod's own definition: the @Mod entry point and its /jechtest command, plus
+// the generated META-INF/neoforge.mods.toml. A mod file may not contain a @Mod class whose id the
+// file's own mods.toml does not declare, so the entry point and the toml stay out of the engine.
+// The entry source set depends on the engine; the engine cannot depend on it, which is why the mod
+// id lives in UiTestConstants.
+sourceSets {
+    uitestMod {
+        java {
+            srcDir 'src/uitestMod/java'
+        }
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+    }
+    uitestModEntry {
+        java {
+            srcDir 'src/uitestModEntry/java'
+        }
+        compileClasspath += sourceSets.uitestMod.output + sourceSets.main.output + sourceSets.main.compileClasspath
+    }
+    uitest {
+        java {
+            srcDir 'src/uitest/java'
+        }
+        compileClasspath += sourceSets.uitestMod.output + sourceSets.uitestModEntry.output
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+    }
+}
+
+// The nullness annotations the ported engine carries. They are CLASS-retention and compile-only:
+// nothing at runtime reads them, and the shipped jecharacters jar never sees them.
+dependencies {
+    uitestModCompileOnly 'org.jspecify:jspecify:1.0.1'
+}
+
+// The harness mod's own mods.toml, expanded the way the main mod's is. The [[mixins]] entry there is
+// what makes FML apply jechtest.mixins.json — and only when the jechtest mod is loaded.
+def mcVersionRange = "[${project.minecraft_version},)"
+def jechUiTestModMetadata = tasks.register('generateUiTestModMetadata', ProcessResources) {
+    def replaceProperties = [
+            minecraft_version_range: mcVersionRange,
+            neo_version_range      : project.neo_version_range,
+            loader_version_range   : project.loader_version_range,
+            mod_id                 : project.mod_id,
+            mod_version            : jechUiTestModVersion
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from 'src/uitestMod/templates'
+    into 'build/generated/sources/uitestModEntryMetadata'
+}
+sourceSets.uitestModEntry.resources.srcDir jechUiTestModMetadata
+
+neoForge {
+    mods {
+        // The dev-only UI test harness, a mod of its own. Only clientTests loads it; the jar task
+        // never sees it. Its mods.toml, mixin config and @Mod entry point all come from the harness
+        // source sets, so a harness run gets code and definition from one mod folder.
+        jechtest {
+            sourceSet(sourceSets.uitestMod)
+            sourceSet(sourceSets.uitestModEntry)
+            sourceSet(sourceSets.uitest)
+        }
+    }
+
+    runs {
+        // The harness's one run, and the only one that loads jechtest. Its own game directory keeps
+        // a harness boot from ever sharing a latest.log or a world with an ordinary client, and the
+        // -PjechTest wiring lives here rather than on the plain client run.
+        clientTests {
+            client()
+            gameDirectory = jechUiTestOutDir
+            // The mod under test puts PinIn on the *client* run's classpath through that run's own
+            // classpath configuration (clientAdditionalRuntimeClasspath in neoforge/build.gradle),
+            // which a second run does not inherit. PinIn is what JECh's own config classes load, so
+            // without it the clientTests run boots with jecharacters in a broken state and refuses
+            // every event. This is the clientTests run's counterpart of that line.
+            dependencies {
+                additionalRuntimeClasspath "com.github.towdium:PinIn:${verpinin}"
+            }
+            if (jechUiTestSelection != null) {
+                systemProperty 'jech.uitest.run', jechUiTestSelection
+                systemProperty 'jech.uitest.out', jechUiTestOutDir.absolutePath
+                systemProperty 'jech.uitest.exclude', jechUiTestExclude
+                if (jechUiTestGuiScale != null) systemProperty 'jech.uitest.guiScale', jechUiTestGuiScale
+                if (jechUiTestWindowWidth != null) systemProperty 'jech.uitest.windowWidth', jechUiTestWindowWidth
+                if (jechUiTestWindowHeight != null) systemProperty 'jech.uitest.windowHeight', jechUiTestWindowHeight
+                if (jechUiTestInputMode != null) systemProperty 'jech.uitest.inputMode', jechUiTestInputMode
+                if (jechUiTestWatchdogSec != null) systemProperty 'jech.uitest.watchdogSec', jechUiTestWatchdogSec
+                if (jechUiTestKeepOpen) systemProperty 'jech.uitest.keepOpen', 'true'
+            }
+            if (jechUiTestHeadless) systemProperty 'jech.uitest.headless', 'true'
+        }
+    }
+}
+
+// A run's loaded mods default to every registered mod, so every run's set is named explicitly: the
+// ordinary runs load the mod under test alone, the harness run additionally loads jechtest.
+def jechMod = neoForge.mods.getByName(project.mod_id.toString())
+def jechUiTestMod = neoForge.mods.getByName('jechtest')
+neoForge.runs.configureEach { run ->
+    run.loadedMods.set(run.name == 'clientTests' ? [jechMod, jechUiTestMod] : [jechMod])
+}
+
+// Deletes the previous run's output so the verification task can never read an older verdict. A real
+// task dependency, not a doFirst: Gradle snapshots a task's inputs before running its actions, so a
+// doFirst is never reached when the runtime classpath fails to resolve - exactly the case the delete
+// exists for.
+def jechUiTestCleanReport = tasks.register('jechCleanUiTestReport', Delete) {
+    group = 'verification'
+    description = 'Deletes the previous JECh UI test run output.'
+    delete jechUiTestOutDir
+}
+
+def jechUiTestVerify = tasks.register('verifyJechUiTest') {
+    group = 'verification'
+    description = 'Reads the UI test report and fails the build unless every scenario passed.'
+    onlyIf { jechUiTestSelection != null }
+    doLast {
+        def report = new File(jechUiTestOutDir, 'report.json')
+        if (!report.isFile()) {
+            throw new GradleException(
+                "no UI test report at ${report} - the client crashed, never reached the runner, "
+                    + 'or -PjechTest matched no scenarios'
+            )
+        }
+        def run = new groovy.json.JsonSlurper().parse(report)
+        def totals = run.totals
+        logger.lifecycle(
+            "jechtest-uitest ${run.status}: ${totals.passed}/${totals.scenarios} scenarios passed, "
+                + "${totals.checks - totals.checksFailed}/${totals.checks} checks passed, "
+                + "${totals.captures} captures, ${run.durationMs} ms"
+        )
+        def failures = []
+        run.scenarios.each { scenario ->
+            if (scenario.status != 'PASS') {
+                failures.add("scenario ${scenario.name}: ${scenario.status}"
+                    + (scenario.message == null ? '' : " (${scenario.message})"))
+            }
+            scenario.steps.each { step ->
+                if (step.status != 'PASS') {
+                    logger.error("  step ${step.index} ${step.name}: ${step.status}"
+                        + (step.waitingFor == null ? '' : " waitingFor=${step.waitingFor}"))
+                    step.checks.each { check ->
+                        if (!check.passed) {
+                            logger.error("    check ${check.label} FAILED"
+                                + (check.detail == null ? '' : " (${check.detail})"))
+                        }
+                    }
+                    step.captures.each { capture ->
+                        logger.error("    capture ${capture.path}"
+                            + (capture.suspect ? ' SUSPECT flat colour' : ''))
+                    }
+                    if (step.error != null) {
+                        logger.error("    error ${step.error.type}: ${step.error.message}")
+                    }
+                }
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException('UI test failed:\n  ' + failures.join('\n  '))
+        }
+    }
+}
+
+// The run tasks are created after this script is evaluated, so the hook is a configureEach rather
+// than a direct reference. A missing report is itself a failure, which is what makes a client that
+// crashed before the runner started show up as a red build.
+tasks.configureEach { task ->
+    if (task.name != 'runClientTests' || jechUiTestSelection == null) return
+    task.dependsOn jechUiTestCleanReport
+    task.finalizedBy jechUiTestVerify
+}
+
+// The isolation gate: the shipped jecharacters jar must not carry a single harness class, mixin or
+// mixin entry. It reads the jar itself rather than trusting the source-set wiring, so a directory
+// creeping back into sourceSets.main fails the build instead of shipping.
+def jechHarnessIsolationJar = tasks.named('jar', Jar).flatMap { it.archiveFile }
+def jechVerifyHarnessIsolation = tasks.register('verifyHarnessIsolation') {
+    group = 'verification'
+    description = 'Fails when the jecharacters jar carries UI-test harness classes, mixins or mixin entries.'
+    dependsOn tasks.named('jar')
+    def jarArchive = jechHarnessIsolationJar
+    inputs.file(jarArchive)
+    doLast {
+        def offenders = []
+        new java.util.zip.ZipFile(jarArchive.get().asFile).withCloseable { zip ->
+            zip.entries().each { entry ->
+                def name = entry.name
+                if (name.startsWith('me/towdium/jecharacters/uitest/')
+                        || name.startsWith('me/towdium/jecharacters/mixin/uitest/')) {
+                    offenders.add(name)
+                }
+                if (name == 'jechtest.mixins.json') {
+                    offenders.add('jechtest.mixins.json leaked into the mod-under-test jar')
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException(
+                'the dev-only UI-test harness leaked into the jecharacters jar:\n  ' + offenders.join('\n  ')
+            )
+        }
+        logger.lifecycle('verifyHarnessIsolation: the jecharacters jar carries no UI-test classes or mixins')
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('compileUitestModJava')
+    dependsOn tasks.named('compileUitestModEntryJava')
+    dependsOn tasks.named('compileUitestJava')
+    dependsOn jechVerifyHarnessIsolation
+}

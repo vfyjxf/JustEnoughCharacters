@@ -20,6 +20,9 @@ build
 # other
 eclipse
 run
+# the UI-test harness's game directories (runs/client-tests), which hold a whole
+# Minecraft install: worlds, logs, options. Never committed.
+runs
 .vscode
 
 # generated

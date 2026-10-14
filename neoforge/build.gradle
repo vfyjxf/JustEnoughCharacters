@@ -100,3 +100,9 @@ idea {
         downloadJavadoc = true
     }
 }
+
+
+// The dev-only in-client UI test harness (the jechtest mod): source sets, the clientTests run and
+// the -PjechTest wiring. Applied last so `version` is already set; every part of it is inert
+// without -PjechTest*.
+apply from: rootProject.file('gradle/jech-uitest.gradle')
