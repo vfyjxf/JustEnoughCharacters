@@ -1,24 +1,36 @@
 # JECh compatibility tests — the `jt` harness, shipped as this branch's
 # `compat-tests/` submodule.
 #
-# This workflow runs on the workstation's own machine through a self-hosted
-# runner (`runs-on: [self-hosted, macOS]`), because a run launches a real
-# Minecraft client and there is no Linux runner here.
+# Runner: a hosted `ubuntu-latest`. There is no self-hosted machine and no Prism:
+# a run compiles this checkout and launches the client through its own Gradle run
+# task, so it needs a JDK, Gradle, a display and the harness's data root — nothing
+# a base runner lacks. The client does need a real display, and Xvfb supplies one
+# (software GL): `xvfb-run` gives DISPLAY to the whole `jt -> ./gradlew -> client`
+# tree, which covers the client because the harness starts Gradle itself and
+# copies its environment (`lib/instance.py`, `launch_gradle`).
 #
-# The runner MUST be installed as a USER-level launchd agent inside a logged-in
-# GUI session: `./svc.sh install <user>` + `./svc.sh start` registers a
-# LaunchAgent that inherits the GUI session. A system-level LaunchDaemon has no
-# WindowServer session, so Prism cannot create a window and every launch fails.
-# Bootstrap checklist — registering the runner, the runner's own `.env`, the
-# secret and the first-run expectations — is in compat-tests/README.md, "CI".
+# The shape follows JEI's own `.github/workflows/tests.yml`
+# (mezz/JustEnoughItems): `actions/setup-java`, `gradle/actions/setup-gradle`
+# pinned to the wrapper with the Minecraft transformation intermediates excluded
+# from the Gradle User Home cache and cached separately by `actions/cache`,
+# `xvfb-run` around the client run — and no account anywhere, because a Gradle dev
+# run authenticates as the dev player.
 #
-# There is deliberately no `push` trigger: the same policy as the CloudMods
-# client-tests. A run resolves and downloads mods and then launches real
-# Minecraft clients, so hanging it off every bump would burn a runner on every
-# commit. Dispatch it by hand from the Actions tab instead.
+# The checkout is placed in a directory named after this branch's envs'
+# `jech.project` ("1.21.1") and `JT_JECH_ROOT` points at its parent: that is the
+# layout the harness's paths are written against, `$JT_JECH_ROOT/<project_dir>`
+# being the checkout a run happens in (`lib/runner.py`, `checkout_dir`).
 #
-# Default selection for this branch: "tag:1211" — the `selection` input's own
-# default, described below.
+# CAVEAT — the submodule URL is still the workstation's absolute path
+# (`.gitmodules`: `url = /Users/.../JechGround/compat-tests`). A hosted runner
+# cannot fetch that, so `submodules: recursive` below fails until the branch is
+# pushed with a URL the runner can reach (the fork's compat-tests repository).
+# Nothing else in this workflow depends on the workstation layout.
+#
+# There is deliberately no `push` trigger: a dispatch downloads mods and launches
+# real Minecraft clients, so it is not something to spend on every commit. Trigger
+# it by hand from the Actions tab. The `selection` input's default is this
+# branch's matrix.
 name: compat-tests
 
 on:
@@ -26,128 +38,176 @@ on:
     inputs:
       selection:
         description: >-
-          jt selection. The first expression includes, an optional second
-          expression excludes: "tag:1211" selects both 1.21.1 envs. Terms inside
-          one expression are comma-separated and OR-ed.
+          jt include expression: comma-separated, OR-ed terms, each `all`, an exact
+          env name, `tag:<tag>` or `regex:<pattern>`. The default runs this
+          branch's two rows.
         required: false
-        default: "tag:1211"
+        default: "1.21.1-neoforge,1.21.1-fabric"
+        type: string
+      exclude:
+        description: >-
+          Optional second jt expression, subtracted from the selection. Leave empty
+          to exclude nothing.
+        required: false
+        default: ""
         type: string
 
-# One heavy run at a time per branch; a second dispatch queues instead of
-# doubling the load on the runner.
+# One heavy run at a time per branch.
 concurrency:
   group: compat-tests-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   compat-tests:
     name: jt run
-    # The workstation's own self-hosted runner: the game window has to be able to
-    # appear in its GUI session, and the runs use the JDKs and the Prism Launcher
-    # installed on this machine.
-    runs-on: [self-hosted, macOS]
-    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    # Two rows, each with its own 600 s watchdog (`timeout_sec` in envs/*.json),
+    # plus the cold first run on a fresh runner: the Minecraft toolchain and assets
+    # are provisioned inside the row's own timeout, and the caches above only pay
+    # off from the second dispatch onwards.
+    timeout-minutes: 60
     env:
-      # All jt state (HTTP/mod cache, Prism data root, instances, run reports)
-      # lives under JT_HOME — compat-tests/lib/paths.py:77 (jt_home), :110
-      # (runs_dir = jt_home()/"runs"). The submodule's parent directory IS the
-      # branch checkout, so $JT_JECH_ROOT is the root the envs' jech.project
-      # checkouts are found under — compat-tests/lib/resolve.py:224.
-      #
-      # JT_HOME itself is deliberately NOT set here: a workflow `env:` cannot read
-      # the runner's own environment, and a CI data root must not be hard-coded in
-      # a checked-in file. The run step takes it from the runner-level variable
-      # `JT_HOME_CI` instead (see "Run compat tests").
+      # All jt state — the mod/HTTP caches, the vanilla-server jars, the generated
+      # world seeds and `runs/` — lives under JT_HOME (`lib/paths.py`, `jt_home()`
+      # and `runs_dir()`). Pinning it keeps the run, the cache path and the artifact
+      # path on one directory. Without it the chain would fall through to
+      # `~/.jech-compat`: the `Data/jech-compat` root it tries first is computed from
+      # the checkout's own location and only exists on the workstation layout.
+      JT_HOME: ${{ github.workspace }}/jt-home
+      # The directory the envs' checkouts are resolved under: this branch's
+      # checkout sits at <workspace>/1.21.1, exactly as `env.gradle.project_dir`
+      # ("1.21.1") spells it.
       JT_JECH_ROOT: ${{ github.workspace }}
+      JECH_DIR: ${{ github.workspace }}/1.21.1
     steps:
+      # The branch checkout is placed under its own `jech.project` name, which is
+      # what `$JT_JECH_ROOT/<project>` resolves for every env here; the submodule
+      # rides along inside it.
       - name: Check out the branch and the compat-tests submodule
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
+          path: 1.21.1
           submodules: recursive
+          persist-credentials: false
 
-      # No actions/setup-java and no actions/setup-python: both exist to
-      # provision a toolchain on a bare hosted runner and add nothing on a
-      # self-hosted one — this machine already has python3 (3.9+, everything jt
-      # needs) and the JDKs (8/17/21/25) on the login session's PATH, resolved
-      # through /usr/libexec/java_home. Gradle comes from the branch's own wrapper.
+      # JDK 21 is everything this branch needs: the wrapper is Gradle 8.13 (it
+      # cannot run on 25), the client's toolchain is 21, and 21 is the JDK the
+      # vanilla server wants for the world seed.
       #
-      # The wrapper is Gradle 8.13 here, which cannot run on Java 25 — and 25 is
-      # the runner's default JDK — so this step pins JAVA_HOME to JDK 21. A
-      # step-level `env:` value takes no command substitution, so the lookup
-      # (`/usr/libexec/java_home -v 21`) happens in the shell line and JAVA_HOME is
-      # exported there. The Minecraft client itself is launched by jt with the
-      # per-env JDK it resolves — see the note in the run step.
-      - name: Build the mod (jt runs the jar straight from the build directory)
-        env:
-          GRADLE_JAVA_MAJOR: "21"
-        run: |
-          export JAVA_HOME="$(/usr/libexec/java_home -v "$GRADLE_JAVA_MAJOR")"
-          echo "Gradle JAVA_HOME=$JAVA_HOME"
-          ./gradlew build
+      # jt resolves a per-env JDK itself. On macOS it calls
+      # `/usr/libexec/java_home`; off macOS — this runner — it reads
+      # `JT_JAVA_<major>_HOME` and then `JAVA_HOME`, and re-checks the answer
+      # against the JDK's own `release` file (`lib/instance.py`, `java_home_for()`).
+      # Pinning the variable keeps that resolution explicit instead of leaning on
+      # the ambient default.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
 
-      # There is no account-seeding step any more: the CI data root ships a real
-      # Microsoft `accounts.json` (Data/jech-compat-ci/prism/, mode 600, never
-      # committed, never printed). An offline/dummy account cannot work — Prism
-      # raises its first-run wizard unless an account that owns Minecraft is
-      # present — so the root is seeded from a logged-in one; see
-      # compat-tests/README.md, "CI".
+      - name: Pin JT_JAVA_21_HOME (jt's non-macOS JDK lookup)
+        run: echo "JT_JAVA_21_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      # Xvfb gives the client a display; `lsof` is how the runner identifies a
+      # Gradle-launched client — "the java process under this launcher whose working
+      # directory is this run's game directory" (`lib/instance.py`,
+      # `gradle_game_pids()`) — so it is a hard requirement of this backend. Both
+      # are on the hosted image; install only what is missing.
+      - name: Install Xvfb and lsof
+        run: |
+          set -euo pipefail
+          missing=()
+          command -v Xvfb >/dev/null 2>&1 || missing+=(xvfb)
+          command -v lsof >/dev/null 2>&1 || missing+=(lsof)
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "Xvfb and lsof are already present on the runner image"
+            exit 0
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends "${missing[@]}"
+
+      # Gradle User Home caching. `caches/neoformruntime/intermediate_results`
+      # (ModDevGradle's decompiled-Minecraft output, this branch's NeoForge plugin)
+      # is excluded here and cached on its own below: it is large, it is keyed by
+      # the Minecraft/loader inputs rather than by this branch's sources, and it is
+      # what makes a source-only change cheap.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: wrapper
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          gradle-home-cache-excludes: |
+            caches/neoformruntime/intermediate_results
+
+      - name: Cache Minecraft transformations
+        uses: actions/cache@v5
+        with:
+          path: ~/.gradle/caches/neoformruntime/intermediate_results
+          key: neoform-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('1.21.1/gradle.properties', '1.21.1/**/*.gradle', '1.21.1/gradle/wrapper/gradle-wrapper.properties', '1.21.1/**/accesstransformer.cfg') }}
+
+      # jt's own downloads — pinned mod jars, vanilla-server jars, generated world
+      # seeds — are content-addressed under `JT_HOME/cache`; a world seed costs a
+      # full vanilla dedicated-server run to (re)build.
+      - name: Cache jt's data (mods, server jars, world seeds)
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.JT_HOME }}/cache
+          key: jt-data-${{ runner.os }}-${{ github.ref_name }}-${{ hashFiles('1.21.1/compat-tests/envs/*.json') }}
+          restore-keys: |
+            jt-data-${{ runner.os }}-${{ github.ref_name }}-
+            jt-data-${{ runner.os }}-
+
+      # Resolving a row reads the jar the env pins (`jech.path`) even before the
+      # run task would build it, so the modules under test are built first: this
+      # fails on a compile error with a Gradle log, instead of inside a watchdog.
+      - name: Build the modules under test
+        working-directory: ${{ env.JECH_DIR }}
+        run: ./gradlew :neoforge:build :fabric:build
+
       - name: Run compat tests
+        working-directory: ${{ env.JECH_DIR }}
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           SELECTION: ${{ inputs.selection }}
+          EXCLUDE: ${{ inputs.exclude }}
         run: |
           set -euo pipefail
 
-          # CI runs on its own data root, handed over by the runner as a
-          # runner-level environment variable (the runner's `.env`, see
-          # compat-tests/README.md "CI"). Two reasons: no absolute workstation
-          # path is baked into a checked-in workflow, and a CI run can never fight
-          # a manual `jt run` over the same Prism data root — Prism lets only one
-          # process own a data root at a time (a second `--launch` becomes a
-          # handoff to the running launcher, which the runner reports instead of
-          # silently passing).
-          : "${JT_HOME_CI:?JT_HOME_CI 未配置：在 runner 的 .env 里设置}"
-          export JT_HOME="$JT_HOME_CI"
-          # Republish the root for later steps: $GITHUB_ENV feeds the `env`
-          # context, so the upload step can say $JT_HOME/runs without repeating
-          # the path.
-          echo "JT_HOME=$JT_HOME" >> "$GITHUB_ENV"
           echo "jt data root: $JT_HOME"
           echo "note: a fresh data root warms itself on first use (vanilla jars, assets, libraries) - a slow first run is expected"
 
-          # The input is "<include> [<exclude>]". `jt run` takes ONE expression
-          # plus a separate `--exclude` flag (compat-tests/lib/__main__.py), so
-          # the optional second expression is handed to --exclude. `read -a`
-          # word-splits without globbing, so an `all`/`*` selection can never
-          # expand against the checkout itself — and without interpreting shell
-          # quotes either, so write regex terms bare (commas separate the terms of
-          # one expression), e.g. `regex:^mv-1\.1(6|8)\.2- tag:experimental`.
-          read -r -a selection <<< "$SELECTION"
-          include="${selection[0]:-}"
-          exclude="${selection[*]:1}"
+          # A real key is injected as an environment variable and never written to
+          # disk: jt reads the environment before it ever looks at
+          # `<JT_HOME>/secrets.env` (`lib/secrets.py`, `get()`), and the harness
+          # never prints, logs or caches the value. Failing here names the missing
+          # repository secret instead of letting the first resolve fail obscurely.
+          : "${CF_API_KEY:?CF_API_KEY is not set: add the repository secret (Settings > Secrets and variables > Actions > Repository secrets)}"
 
-          args=(python3 compat-tests/jt run "$include")
-          if [ -n "$exclude" ]; then
-            args+=(--exclude "$exclude")
+          # `jt run` takes ONE include expression plus an optional `--exclude`
+          # (`lib/__main__.py`); the input is passed verbatim so a comma-separated
+          # list keeps meaning "any of these".
+          args=(python3 compat-tests/jt run "$SELECTION")
+          if [ -n "${EXCLUDE// /}" ]; then
+            args+=(--exclude "$EXCLUDE")
           fi
 
-          # No display wrapper: this is a macOS GUI session, so Prism opens a
-          # real window and the client runs on the real GL stack — the
-          # `xvfb-run` wrapper the Linux workflow needed is gone.
-          #
-          # JDK lookup needs nothing extra here: jt resolves each env's JDK itself
-          # through /usr/libexec/java_home (compat-tests/lib/instance.py) and
-          # re-checks the answer against the JDK's own `release` file, so this
-          # branch's java-21 envs reach the installed JDK 21 with no
-          # JT_JAVA_21_HOME.
-          "${args[@]}"
+          # The client needs a display. `-s` pins a 24-bit screen on purpose: GLFW
+          # asks for a visual with a real colour depth and Xvfb's default depth is
+          # not enough for GL to come up.
+          xvfb-run -a -s "-screen 0 1920x1080x24" "${args[@]}"
 
       - name: Upload run reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jt-runs-${{ github.ref_name }}
-          # lib/paths.py:111 — runs_dir() is $JT_HOME/runs. JT_HOME was published
-          # to $GITHUB_ENV by the run step, i.e. it is the runner's JT_HOME_CI.
+          # `lib/paths.py`, `runs_dir()`: one directory per run, holding report.json
+          # / report.txt / junit.xml, the gradle log, the captured game log, the
+          # game directory (with the uitest report and captures for
+          # 1.21.1-neoforge) and any crash reports.
           path: ${{ env.JT_HOME }}/runs
           if-no-files-found: warn
