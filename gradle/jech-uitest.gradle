@@ -185,7 +185,23 @@ neoForge.runs.configureEach { run ->
 def jechUiTestCleanReport = tasks.register('jechCleanUiTestReport', Delete) {
     group = 'verification'
     description = 'Deletes the previous JECh UI test run output.'
-    delete jechUiTestOutDir
+    if (jechUiTestRunDir == null) {
+        // Why not `delete jechUiTestOutDir` here: in this form that directory is the run's whole game
+        // directory, and <game dir>/jech-scenarios inside it is an *input* - the hot folder a
+        // scenario is dropped into so it needs no rebuild. Removing the directory wholesale would
+        // take the hot channel with it and a dropped file would never be discovered, so enumerate
+        // the directory's own direct children and delete all of them except that hot folder (every
+        // bare run is still a clean, one-shot environment). A Provider, not a File list, so the
+        // listing is taken when the task runs rather than while the script is configured.
+        delete providers.provider {
+            def children = jechUiTestOutDir.listFiles()
+            children == null ? [] : children.findAll { it.name != 'jech-scenarios' }
+        }
+    } else {
+        // With -PjechRunDir the run borrows a game directory a launcher owns; only the harness's own
+        // output directory under it (<game dir>/uitest) is ours to clear.
+        delete jechUiTestOutDir
+    }
 }
 
 // The options.txt a run of this harness needs, written into the game directory Gradle owns. The
