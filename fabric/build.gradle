@@ -8,6 +8,35 @@ plugins {
 version = "${verspec}.${verbuild}"
 group = 'me.towdium.jecharacters'
 
+// Optional, property-driven run wiring for the compatibility harness (jt's
+// "gradle backend"): -PjechRunDir points the client at a game directory outside
+// this checkout, -PjechQuickPlayWorld makes it join a world on launch. Without
+// either property the run behaves exactly as before (run/ in this module).
+def jechRunDir = providers.gradleProperty("jechRunDir")
+def jechQuickPlayWorld = providers.gradleProperty("jechQuickPlayWorld")
+
+// The runs container already holds loom's default "client" run; this only adds
+// the two optional arguments, so `./gradlew runClient` is unchanged.
+//
+// runDir is handed to loom as a path *relative to this module*: loom joins the
+// setting onto the module directory with new File(projectDir, runDir), which
+// concatenates rather than replaces, so an absolute path would land inside the
+// checkout instead of where it points. relativePath() turns any target — an
+// absolute one included — into a path loom joins back to exactly that target.
+loom {
+    runs {
+        client {
+            if (jechRunDir.isPresent()) {
+                runDir project.relativePath(new File(jechRunDir.get()))
+            }
+            if (jechQuickPlayWorld.isPresent()) {
+                programArg "--quickPlaySingleplayer"
+                programArg jechQuickPlayWorld.get()
+            }
+        }
+    }
+}
+
 base {
     archivesName = mod_id + '-' + minecraft_version + '-fabric'
 }
@@ -42,6 +71,31 @@ processResources {
     filesMatching("fabric.mod.json") {
         expand "version": project.version
     }
+}
+
+// The transformer targets the jech plugin generates reach the *published* jar
+// (the plugin wires them into the jar task) but not a development run: `runClient`
+// puts this module's resource output on the classpath, and processResources never
+// copied the generated file, so the client had no
+// `me/towdium/jecharacters/targets.json` — the mixin plugin threw "Could not find
+// targets.json" and JECh's class transformer silently never loaded, which is the
+// failure the fabric row of the harness exists to catch. Routing the generated
+// file through processResources puts it in the module's output, where both a dev
+// run and the jar find it under the path the plugin looks for. (The neoforge
+// module already does this for itself through coremod-neoforge, whose jar carries
+// the same file.)
+processResources {
+    from(tasks.named("generateTargetConfig")) {
+        into "me/towdium/jecharacters"
+    }
+}
+
+// ...which is now that same file from two places, and a Jar task fails on a
+// duplicate by default. The two copies are byte-identical (one source file), so
+// keeping the first is exactly the jar this build produced before — the entry
+// list does not change.
+tasks.named("jar", Jar) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 tasks.withType(JavaCompile).configureEach {

@@ -7,6 +7,13 @@ plugins {
 
 version = "${verspec}.${verbuild}"
 
+// Optional, property-driven run wiring for the compatibility harness (jt's
+// "gradle backend"): -PjechRunDir points the client at a game directory outside
+// this checkout, -PjechQuickPlayWorld makes it join a world on launch. Without
+// either property the run behaves exactly as before.
+def jechRunDir = providers.gradleProperty("jechRunDir")
+def jechQuickPlayWorld = providers.gradleProperty("jechQuickPlayWorld")
+
 base {
     archivesName = mod_id + '-' + minecraft_version + '-neoforge'
 }
@@ -26,6 +33,13 @@ neoForge {
         }
         client {
             client()
+            if (jechRunDir.isPresent()) {
+                gameDirectory = layout.dir(providers.provider { new File(jechRunDir.get()) })
+            }
+            if (jechQuickPlayWorld.isPresent()) {
+                programArgument "--quickPlaySingleplayer"
+                programArgument jechQuickPlayWorld.get()
+            }
         }
     }
 
