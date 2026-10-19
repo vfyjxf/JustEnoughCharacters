@@ -15,7 +15,8 @@
     {"do": "wait_ms", "ms": 500},
     {"do": "log", "text": "emi-search: type the pinyin of 石头 (shi tou) one character at a time"},
     {"do": "type_text", "text": "shitou"},
-    {"do": "assert_match_recorded", "candidate_contains": "石", "expect": true, "within_ms": 12000},
+    {"do": "log", "text": "emi-search: the assertion reads FakeArray.search, EMI's baked index behind JECh's tree: the typed pinyin on the query side, a Chinese name on the candidate side"},
+    {"do": "assert_match_recorded", "method": "FakeArray.search", "query_contains": "shitou", "candidate_contains": "石", "expect": true, "within_ms": 12000},
     {"do": "screenshot", "label": "filtered"},
     {"do": "close_screen"},
     {"do": "wait_until_screen", "screen": null}

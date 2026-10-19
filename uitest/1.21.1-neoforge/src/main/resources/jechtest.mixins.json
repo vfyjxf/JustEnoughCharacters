@@ -8,6 +8,7 @@
   "client": [
     "uitest.ChatComponentAccessor",
     "uitest.ClientPacketListenerMixin",
+    "uitest.FakeArrayMixin",
     "uitest.InputConstantsMixin",
     "uitest.JechSearchStorageMixin",
     "uitest.KeyMappingAccessor",

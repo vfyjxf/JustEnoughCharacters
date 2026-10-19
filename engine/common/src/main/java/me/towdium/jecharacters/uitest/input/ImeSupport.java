@@ -10,9 +10,17 @@ public final class ImeSupport {
         return new UnsupportedOperationException(
             "this harness row cannot drive IME composition: its Minecraft " + minecraftVersion
                 + " has no KeyboardHandler.textInput(long, String) / textEditing(long, PreeditEvent) pair to "
-                + "inject a pre-edit and a commit through. The ime_compose / ime_commit / assert_focus_text / "
+                + "inject a pre-edit and a commit through. The ime_compose / ime_commit / "
                 + "assert_focus_preedit steps are wired for the MC 26.3 rows, and this row refuses the step "
                 + "instead of skipping it"
+        );
+    }
+
+    public static UnsupportedOperationException unsupportedFocusedText(String minecraftVersion) {
+        return new UnsupportedOperationException(
+            "this harness row cannot read the focused widget's text: its Minecraft " + minecraftVersion
+                + " row has no ScreenInput.imeFocusedText body. The assert_focus_text step is wired for the "
+                + "MC 26.3 and 1.21.1 rows, and this row refuses the step instead of skipping it"
         );
     }
 

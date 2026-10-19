@@ -29,7 +29,7 @@ public interface ScreenInput {
     }
 
     default String imeFocusedText() {
-        throw ImeSupport.unsupported(ImeSupport.rowVersion());
+        throw ImeSupport.unsupportedFocusedText(ImeSupport.rowVersion());
     }
 
     default boolean imeFocusedPreeditOverlay() {

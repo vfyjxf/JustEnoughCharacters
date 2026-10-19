@@ -4,6 +4,8 @@ import com.mojang.blaze3d.platform.InputConstants;
 import me.towdium.jecharacters.mixin.uitest.MouseHandlerAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import org.lwjgl.glfw.GLFW;
 
@@ -52,6 +54,28 @@ public final class ScreenInputImpl implements ScreenInput {
     @Override
     public void charTyped(Object screen, int codePoint, int modifiers) {
         ((Screen) screen).charTyped((char) codePoint, modifiers);
+    }
+
+    @Override
+    public String imeFocusedText() {
+        Screen screen = Minecraft.getInstance().screen;
+        if (screen == null) {
+            throw new IllegalStateException("no screen is open, so no widget can hold the focused text");
+        }
+        GuiEventListener focused = screen.getFocused();
+        if (focused == null) {
+            throw new IllegalStateException(
+                "the " + screen.getClass().getSimpleName() + " screen has no focused widget, so there is "
+                    + "no focused text to read"
+            );
+        }
+        if (!(focused instanceof EditBox box)) {
+            throw new IllegalStateException(
+                "the focused widget is a " + focused.getClass().getName() + ", which carries no text; "
+                    + "assert_focus_text reads the value of a focused EditBox"
+            );
+        }
+        return box.getValue();
     }
 
     @Override
