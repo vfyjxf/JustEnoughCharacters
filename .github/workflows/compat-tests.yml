@@ -75,8 +75,82 @@ permissions:
   contents: read
 
 jobs:
+  # One job owns the caches, because they are shared and the accounting is global:
+  # GitHub evicts a repository's oldest caches past 10 GB, and sixteen shards each
+  # saving a ~1.7 GB Gradle User Home (27 GB of saves) evicted everything else —
+  # including `JT_HOME/cache`, which is the one that matters: the game files and
+  # every pinned mod jar. Every wave was therefore downloading its whole mod set
+  # again. This job fills the Gradle User Home (both loaders' game artifacts), the
+  # Minecraft transformation intermediates, and jt's data root (it resolves the mod
+  # batches, so every pinned jar lands in the cache) — and the two jobs below restore
+  # all three read-only.
+  warm:
+    name: warm the caches
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      JT_HOME: ${{ github.workspace }}/jt-home
+      JT_JECH_ROOT: ${{ github.workspace }}
+      JECH_DIR: ${{ github.workspace }}/1.21.1
+    steps:
+      - name: Check out the branch and the compat-tests submodule
+        uses: actions/checkout@v7
+        with:
+          path: 1.21.1
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Pin JT_JAVA_21_HOME (jt's non-macOS JDK lookup)
+        run: echo "JT_JAVA_21_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: wrapper
+          gradle-home-cache-cleanup: true
+          gradle-home-cache-excludes: |
+            caches/neoformruntime/intermediate_results
+
+      - name: Cache Minecraft transformations
+        uses: actions/cache@v5
+        with:
+          path: ~/.gradle/caches/neoformruntime/intermediate_results
+          key: neoform-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('1.21.1/gradle.properties', '1.21.1/**/*.gradle', '1.21.1/gradle/wrapper/gradle-wrapper.properties', '1.21.1/**/accesstransformer.cfg') }}
+
+      - name: Cache jt's data (game files, mods, server jars, world seeds)
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.JT_HOME }}/cache
+          key: jt-data-${{ runner.os }}-${{ github.ref_name }}-${{ hashFiles('1.21.1/compat-tests/envs/*.json') }}
+          restore-keys: |
+            jt-data-${{ runner.os }}-${{ github.ref_name }}-
+            jt-data-${{ runner.os }}-
+
+      - name: Build the modules under test
+        working-directory: ${{ env.JECH_DIR }}
+        run: ./gradlew :neoforge:build :fabric:build
+
+      # The point of this job: pull every pinned jar into `JT_HOME/cache` so the
+      # shards start a run with nothing to download. A pinned file already in the
+      # cache is not fetched again, so a rerun pays only for what changed.
+      - name: Resolve every pinned mod into the cache
+        working-directory: ${{ env.JECH_DIR }}
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+        run: |
+          set -euo pipefail
+          : "${CF_API_KEY:?CF_API_KEY is not set: add the repository secret (Settings > Secrets and variables > Actions > Repository secrets)}"
+          python3 compat-tests/jt resolve tag:mods
+
   compat-tests:
     name: jt run
+    needs: warm
     # The rows above, on a dispatch that did not ask for the mod batches instead.
     if: ${{ github.event_name == 'workflow_dispatch' && !inputs.mods }}
     runs-on: ubuntu-latest
@@ -155,7 +229,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: wrapper
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          # The `warm` job owns these caches; these jobs only read them, so sixteen
+          # restores cannot each save a copy of the same Gradle User Home.
+          cache-read-only: true
           gradle-home-cache-excludes: |
             caches/neoformruntime/intermediate_results
 
@@ -252,6 +328,7 @@ jobs:
   # what.
   mods-shards:
     name: jt run ${{ matrix.shard }}
+    needs: warm
     if: ${{ github.event_name == 'push' || inputs.mods }}
     runs-on: ubuntu-latest
     # A shard is at most eight single-mod clients, each with its own 600 s watchdog, plus
@@ -300,7 +377,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: wrapper
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          # The `warm` job owns these caches; these jobs only read them, so sixteen
+          # restores cannot each save a copy of the same Gradle User Home.
+          cache-read-only: true
           gradle-home-cache-excludes: |
             caches/neoformruntime/intermediate_results
 
