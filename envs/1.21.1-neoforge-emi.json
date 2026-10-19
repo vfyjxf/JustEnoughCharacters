@@ -1,5 +1,5 @@
 {
-  "_comment": "1.21.1 neoforge 单 mod 实例：EMI（slug emi）。行沿用 envs/1.21.1-neoforge.json 的 uitest/1.21.1-neoforge，不新增 Gradle 行；jei 与平台库仍由行自己加载，这一条目标 mod 由 jt 从它的 pin 下载后交给行；依赖由 tools/mod_deps.py 补齐（补进来的同样打 harness 标签）。EMI 自己占着 Ctrl+F，所以这条实例不跑 JEI 聚焦那两个场景（选了 tag:smoke）；往 EMI 自己搜索框打字的场景属于 per-mod 场景那一步",
+  "_comment": "1.21.1 neoforge 单 mod 实例：EMI（slug emi）。行沿用 envs/1.21.1-neoforge.json 的 uitest/1.21.1-neoforge，不新增 Gradle 行；jei 与平台库仍由行自己加载，这一条目标 mod 由 jt 从它的 pin 下载后交给行；依赖由 tools/mod_deps.py 补齐（补进来的同样打 harness 标签）。EMI 自己占着 Ctrl+F，所以这条实例不跑 JEI 聚焦那两个场景：它跑 tag:smoke 加上 tag:emi（往 EMI 自己的搜索框打「shitou」并断言 JECh 记录到「石」）",
   "name": "1.21.1-neoforge-emi",
   "tags": [
     "1211",
@@ -16,7 +16,7 @@
     "version": 21
   },
   "uitest": {
-    "selection": "tag:smoke",
+    "selection": "tag:smoke,tag:emi",
     "project": "uitest/1.21.1-neoforge"
   },
   "jech": {

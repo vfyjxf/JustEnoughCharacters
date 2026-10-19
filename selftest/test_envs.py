@@ -22,7 +22,7 @@ MOD_ENV_SELECTION = "tag:smoke,tag:jei"
 # Where a single-mod instance deliberately runs less than that pair: EMI owns Ctrl+F
 # itself, so its instance cannot use JEI's focus scenarios and asserts the smoke pair
 # alone until its own scenario exists.
-MOD_ENV_SELECTION_OVERRIDES = {"1.21.1-neoforge-emi": "tag:smoke"}
+MOD_ENV_SELECTION_OVERRIDES = {"1.21.1-neoforge-emi": "tag:smoke,tag:emi"}
 
 
 def mod_env_row(name: str) -> str | None:
