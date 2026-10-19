@@ -1,4 +1,4 @@
 [submodule "compat-tests"]
 	path = compat-tests
-	url = https://github.com/Towdium/JustEnoughCharacters.git
+	url = https://github.com/vfyjxf/JustEnoughCharacters.git
 	branch = compat-tests
