@@ -216,6 +216,22 @@ jobs:
           # not enough for GL to come up.
           xvfb-run -a -s "-screen 0 1920x1080x24" "${args[@]}"
 
+      # The whole run tree is hundreds of megabytes. This is the part a diagnosis
+      # needs, a few megabytes: the harness report, the crash reports and the game
+      # log, per run. A red run names the envs that failed; without this it does not
+      # say why.
+      - name: Upload what a failed run needs to be read
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jt-failure-detail-${{ github.ref_name }}
+          path: |
+            ${{ env.JT_HOME }}/runs/*/game/uitest/report.txt
+            ${{ env.JT_HOME }}/runs/*/game/uitest/report.json
+            ${{ env.JT_HOME }}/runs/*/game/crash-reports/*.txt
+            ${{ env.JT_HOME }}/runs/*/game/logs/latest.log
+          if-no-files-found: ignore
+
       - name: Upload run reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -228,11 +244,12 @@ jobs:
           path: ${{ env.JT_HOME }}/runs
           if-no-files-found: warn
 
-  # The mod-batch envs: 17 clients, one env per run, each `tag:mods-NN` pair naming the
-  # batch both loaders were generated into. They are independent, so the wave is sharded
-  # by batch rather than run serially: one job per shard, four in flight. The preparation
-  # repeats the job above on purpose — a shard needs the same JDK, display, caches and
-  # built modules, and a reusable workflow would hide which shard paid for what.
+  # The single-mod instances: one target mod per env, `1.21.1-<loader>-<slug>`, each
+  # tagged into one of sixteen `mods-NN` shards. They are independent, so the wave is
+  # sharded rather than run serially: one job per shard, all sixteen in flight. The
+  # preparation repeats the job above on purpose — a shard needs the same JDK, display,
+  # caches and built modules, and a reusable workflow would hide which shard paid for
+  # what.
   mods-shards:
     name: jt run ${{ matrix.shard }}
     if: ${{ github.event_name == 'push' || inputs.mods }}
@@ -323,6 +340,18 @@ jobs:
           : "${CF_API_KEY:?CF_API_KEY is not set: add the repository secret (Settings > Secrets and variables > Actions > Repository secrets)}"
 
           xvfb-run -a -s "-screen 0 1920x1080x24" python3 compat-tests/jt run "$SELECTION"
+
+      - name: Upload what a failed run needs to be read
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jt-failure-detail-${{ github.ref_name }}-${{ matrix.shard }}
+          path: |
+            ${{ env.JT_HOME }}/runs/*/game/uitest/report.txt
+            ${{ env.JT_HOME }}/runs/*/game/uitest/report.json
+            ${{ env.JT_HOME }}/runs/*/game/crash-reports/*.txt
+            ${{ env.JT_HOME }}/runs/*/game/logs/latest.log
+          if-no-files-found: ignore
 
       - name: Upload run reports
         if: always()
