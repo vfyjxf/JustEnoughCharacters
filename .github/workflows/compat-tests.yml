@@ -296,6 +296,26 @@ jobs:
       # needs, a few megabytes: the harness report, the crash reports and the game
       # log, per run. A red run names the envs that failed; without this it does not
       # say why.
+      - name: Print what a failed run needs to be read
+        if: failure()
+        run: |
+          set -uo pipefail
+          for report in "$JT_HOME"/runs/*/game/uitest/report.txt; do
+            [ -f "$report" ] || continue
+            echo "=== $report"
+            tail -n 60 "$report"
+          done
+          for crash in "$JT_HOME"/runs/*/game/crash-reports/*.txt; do
+            [ -f "$crash" ] || continue
+            echo "=== $crash"
+            sed -n '1,80p' "$crash"
+          done
+          for log in "$JT_HOME"/runs/*/game/logs/latest.log; do
+            [ -f "$log" ] || continue
+            echo "=== $log"
+            tail -n 200 "$log"
+          done
+
       - name: Upload what a failed run needs to be read
         if: always()
         uses: actions/upload-artifact@v7
@@ -419,6 +439,26 @@ jobs:
           : "${CF_API_KEY:?CF_API_KEY is not set: add the repository secret (Settings > Secrets and variables > Actions > Repository secrets)}"
 
           xvfb-run -a -s "-screen 0 1920x1080x24" python3 compat-tests/jt run "$SELECTION"
+
+      - name: Print what a failed run needs to be read
+        if: failure()
+        run: |
+          set -uo pipefail
+          for report in "$JT_HOME"/runs/*/game/uitest/report.txt; do
+            [ -f "$report" ] || continue
+            echo "=== $report"
+            tail -n 60 "$report"
+          done
+          for crash in "$JT_HOME"/runs/*/game/crash-reports/*.txt; do
+            [ -f "$crash" ] || continue
+            echo "=== $crash"
+            sed -n '1,80p' "$crash"
+          done
+          for log in "$JT_HOME"/runs/*/game/logs/latest.log; do
+            [ -f "$log" ] || continue
+            echo "=== $log"
+            tail -n 200 "$log"
+          done
 
       - name: Upload what a failed run needs to be read
         if: always()
