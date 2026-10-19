@@ -51,6 +51,13 @@ on:
         required: false
         default: ""
         type: string
+      mods:
+        description: >-
+          Run this branch's mod-batch envs (`tag:mods`, 17 clients) instead of the two
+          rows above, sharded across parallel jobs. `selection`/`exclude` are unused then.
+        required: false
+        default: false
+        type: boolean
 
 # One heavy run at a time per branch.
 concurrency:
@@ -63,6 +70,8 @@ permissions:
 jobs:
   compat-tests:
     name: jt run
+    # The rows above, unless the dispatch asked for the mod batches instead (below).
+    if: ${{ !inputs.mods }}
     runs-on: ubuntu-latest
     # Two rows, each with its own 600 s watchdog (`timeout_sec` in envs/*.json),
     # plus the cold first run on a fresh runner: the Minecraft toolchain and assets
@@ -209,5 +218,116 @@ jobs:
           # / report.txt / junit.xml, the gradle log, the captured game log, the
           # game directory (with the uitest report and captures for
           # 1.21.1-neoforge) and any crash reports.
+          path: ${{ env.JT_HOME }}/runs
+          if-no-files-found: warn
+
+  # The mod-batch envs: 17 clients, one env per run, each `tag:mods-NN` pair naming the
+  # batch both loaders were generated into. They are independent, so the wave is sharded
+  # by batch rather than run serially: one job per shard, four in flight. The preparation
+  # repeats the job above on purpose — a shard needs the same JDK, display, caches and
+  # built modules, and a reusable workflow would hide which shard paid for what.
+  mods-shards:
+    name: jt run ${{ matrix.shard }}
+    if: ${{ inputs.mods }}
+    runs-on: ubuntu-latest
+    # A shard is at most six clients, each with its own 600 s watchdog, plus the cold
+    # first run on a fresh data root.
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: batches 01-03
+            selection: tag:mods-01,tag:mods-02,tag:mods-03
+          - shard: batches 04-06
+            selection: tag:mods-04,tag:mods-05,tag:mods-06
+          - shard: batches 07-09
+            selection: tag:mods-07,tag:mods-08,tag:mods-09
+          - shard: batches 10-13
+            selection: tag:mods-10,tag:mods-11,tag:mods-12,tag:mods-13
+    env:
+      JT_HOME: ${{ github.workspace }}/jt-home
+      JT_JECH_ROOT: ${{ github.workspace }}
+      JECH_DIR: ${{ github.workspace }}/1.21.1
+    steps:
+      - name: Check out the branch and the compat-tests submodule
+        uses: actions/checkout@v7
+        with:
+          path: 1.21.1
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Pin JT_JAVA_21_HOME (jt's non-macOS JDK lookup)
+        run: echo "JT_JAVA_21_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+
+      - name: Install Xvfb and lsof
+        run: |
+          set -euo pipefail
+          missing=()
+          command -v Xvfb >/dev/null 2>&1 || missing+=(xvfb)
+          command -v lsof >/dev/null 2>&1 || missing+=(lsof)
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "Xvfb and lsof are already present on the runner image"
+            exit 0
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends "${missing[@]}"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: wrapper
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          gradle-home-cache-excludes: |
+            caches/neoformruntime/intermediate_results
+
+      - name: Cache Minecraft transformations
+        uses: actions/cache@v5
+        with:
+          path: ~/.gradle/caches/neoformruntime/intermediate_results
+          key: neoform-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('1.21.1/gradle.properties', '1.21.1/**/*.gradle', '1.21.1/gradle/wrapper/gradle-wrapper.properties', '1.21.1/**/accesstransformer.cfg') }}
+
+      # Every shard restores the same jt data root; the mods a shard's envs pin are the
+      # only ones it downloads, so the union across shards is one serial run's downloads.
+      - name: Cache jt's data (mods, server jars, world seeds)
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.JT_HOME }}/cache
+          key: jt-data-${{ runner.os }}-${{ github.ref_name }}-${{ hashFiles('1.21.1/compat-tests/envs/*.json') }}
+          restore-keys: |
+            jt-data-${{ runner.os }}-${{ github.ref_name }}-
+            jt-data-${{ runner.os }}-
+
+      - name: Build the modules under test
+        working-directory: ${{ env.JECH_DIR }}
+        run: ./gradlew :neoforge:build :fabric:build
+
+      - name: Run compat tests
+        working-directory: ${{ env.JECH_DIR }}
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          SELECTION: ${{ matrix.selection }}
+        run: |
+          set -euo pipefail
+
+          echo "jt data root: $JT_HOME"
+          echo "shard: $SELECTION"
+          echo "note: a fresh data root warms itself on first use (vanilla jars, assets, libraries) - a slow first run is expected"
+
+          : "${CF_API_KEY:?CF_API_KEY is not set: add the repository secret (Settings > Secrets and variables > Actions > Repository secrets)}"
+
+          xvfb-run -a -s "-screen 0 1920x1080x24" python3 compat-tests/jt run "$SELECTION"
+
+      - name: Upload run reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jt-runs-${{ github.ref_name }}-${{ strategy.job-index }}
           path: ${{ env.JT_HOME }}/runs
           if-no-files-found: warn
