@@ -21,16 +21,15 @@
 # layout the harness's paths are written against, `$JT_JECH_ROOT/<project_dir>`
 # being the checkout a run happens in (`lib/runner.py`, `checkout_dir`).
 #
-# CAVEAT — the submodule URL is still the workstation's absolute path
-# (`.gitmodules`: `url = /Users/.../JechGround/compat-tests`). A hosted runner
-# cannot fetch that, so `submodules: recursive` below fails until the branch is
-# pushed with a URL the runner can reach (the fork's compat-tests repository).
-# Nothing else in this workflow depends on the workstation layout.
+# The submodule is fetched from the repository itself (`.gitmodules` names the
+# GitHub URL), so a hosted runner reaches it without the workstation layout.
 #
-# There is deliberately no `push` trigger: a dispatch downloads mods and launches
-# real Minecraft clients, so it is not something to spend on every commit. Trigger
-# it by hand from the Actions tab. The `selection` input's default is this
-# branch's matrix.
+# Two ways in. A dispatch runs what its inputs ask for: the rows this branch ships,
+# or the mod batches one job per shard. A push that touches the matrix itself — the
+# `compat-tests` pointer, `.gitmodules`, this file — runs the mod batches, since a
+# matrix change is exactly what wants a full wave; a commit to the modules under
+# test still wants a dispatch, because spending seventeen clients on every commit
+# is the thing this workflow is not for.
 name: compat-tests
 
 on:
@@ -58,6 +57,14 @@ on:
         required: false
         default: false
         type: boolean
+  push:
+    # A matrix change is what wants a wave: the compat-tests pointer, the submodule
+    # URL, or this file. Anything else waits for a dispatch.
+    branches: ['1.21.1']
+    paths:
+      - 'compat-tests'
+      - '.gitmodules'
+      - '.github/workflows/compat-tests.yml'
 
 # One heavy run at a time per branch.
 concurrency:
@@ -70,8 +77,8 @@ permissions:
 jobs:
   compat-tests:
     name: jt run
-    # The rows above, unless the dispatch asked for the mod batches instead (below).
-    if: ${{ !inputs.mods }}
+    # The rows above, on a dispatch that did not ask for the mod batches instead.
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.mods }}
     runs-on: ubuntu-latest
     # Two rows, each with its own 600 s watchdog (`timeout_sec` in envs/*.json),
     # plus the cold first run on a fresh runner: the Minecraft toolchain and assets
@@ -228,23 +235,16 @@ jobs:
   # built modules, and a reusable workflow would hide which shard paid for what.
   mods-shards:
     name: jt run ${{ matrix.shard }}
-    if: ${{ inputs.mods }}
+    if: ${{ github.event_name == 'push' || inputs.mods }}
     runs-on: ubuntu-latest
-    # A shard is at most six clients, each with its own 600 s watchdog, plus the cold
-    # first run on a fresh data root.
+    # A shard is at most eight single-mod clients, each with its own 600 s watchdog, plus
+    # the cold first run on a fresh data root.
     timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - shard: batches 01-03
-            selection: tag:mods-01,tag:mods-02,tag:mods-03
-          - shard: batches 04-06
-            selection: tag:mods-04,tag:mods-05,tag:mods-06
-          - shard: batches 07-09
-            selection: tag:mods-07,tag:mods-08,tag:mods-09
-          - shard: batches 10-13
-            selection: tag:mods-10,tag:mods-11,tag:mods-12,tag:mods-13
+        shard: [mods-01, mods-02, mods-03, mods-04, mods-05, mods-06, mods-07, mods-08,
+                mods-09, mods-10, mods-11, mods-12, mods-13, mods-14, mods-15, mods-16]
     env:
       JT_HOME: ${{ github.workspace }}/jt-home
       JT_JECH_ROOT: ${{ github.workspace }}
@@ -312,7 +312,7 @@ jobs:
         working-directory: ${{ env.JECH_DIR }}
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          SELECTION: ${{ matrix.selection }}
+          SELECTION: tag:${{ matrix.shard }}
         run: |
           set -euo pipefail
 
