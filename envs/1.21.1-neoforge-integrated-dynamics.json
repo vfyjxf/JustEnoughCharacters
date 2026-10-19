@@ -1,5 +1,5 @@
 {
-  "_comment": "1.21.1 neoforge 单 mod 实例：Integrated Dynamics（slug integrated-dynamics）。行沿用 envs/1.21.1-neoforge.json 的 uitest/1.21.1-neoforge，不新增 Gradle 行；jei 与平台库仍由行自己加载，这一条目标 mod 由 jt 从它的 pin 下载后交给行；依赖由 tools/mod_deps.py 补齐（补进来的同样打 harness 标签）。",
+  "_comment": "1.21.1 neoforge 单 mod 实例：Integrated Dynamics（slug integrated-dynamics）。行沿用 envs/1.21.1-neoforge.json 的 uitest/1.21.1-neoforge，不新增 Gradle 行；jei 与平台库仍由行自己加载，这一条目标 mod 由 jt 从它的 pin 下载后交给行；依赖由 tools/mod_deps.py 补齐（补进来的同样打 harness 标签）。integrated-dynamics 运行时引用了同族 mod 的类而元数据没声明（NeoForge 的 gametest 会强制加载 @GameTestHolder 类），单独装它会崩，所以带上 integrated-crafting 与 refined-storage —— 批次时代 env-07 就是靠这两条才起来的",
   "name": "1.21.1-neoforge-integrated-dynamics",
   "tags": [
     "1211",
@@ -100,6 +100,45 @@
         "sha1": "e91a27152acfaed1f6992525c16907ad354b711d",
         "sha512": "7a3a8f3a4806045e8724c6c61a177c19530f03611bb8843533a630ed97943d66fe010285c36755135cd460899fe01a2d298223f15de9ec841ba27a2b62208d24",
         "size": 1163177
+      }
+    },
+    {
+      "name": "integratedcrafting",
+      "source": "modrinth",
+      "slug": "integrated-crafting",
+      "tags": [
+        "harness"
+      ],
+      "via": "dev-classpath",
+      "describe": {
+        "version": "integratedcrafting-1.21.1-neoforge-1.8.0.jar"
+      },
+      "pin": {
+        "versionId": "Rp5doGuK",
+        "filename": "integratedcrafting-1.21.1-neoforge-1.8.0.jar",
+        "downloadUrl": "https://cdn.modrinth.com/data/qwpACdla/versions/Rp5doGuK/integratedcrafting-1.21.1-neoforge-1.8.0.jar",
+        "sha1": "67628efa8de29e4d2379f215cb0152996f92efbd",
+        "sha512": "efebf88a56921d5fb3c533eb7aae2324eff276ad85fd6abba32da0d0a0835b498a981bd803d9511098d1843d2cdf83a28010380a57402a037778ec8654feeac6",
+        "size": 513875
+      }
+    },
+    {
+      "name": "refined-storage",
+      "source": "curseforge",
+      "slug": "refined-storage",
+      "tags": [
+        "harness"
+      ],
+      "via": "dev-classpath",
+      "describe": {
+        "version": "refinedstorage-neoforge-2.0.9.jar"
+      },
+      "pin": {
+        "fileId": 8211701,
+        "filename": "refinedstorage-neoforge-2.0.9.jar",
+        "downloadUrl": "https://edge.forgecdn.net/files/8211/701/refinedstorage-neoforge-2.0.9.jar",
+        "sha1": "bf05b983968e75b5466a270c68d1fdc7ba2a5e77",
+        "size": 4360871
       }
     }
   ],

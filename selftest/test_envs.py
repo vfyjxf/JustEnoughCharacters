@@ -19,6 +19,10 @@ from . import support
 # below derives their expectation from the name instead of listing 124 of them.
 MOD_ENV_RE = re.compile(r"^1\.21\.1-(neoforge|fabric)-[a-z0-9._-]+$")
 MOD_ENV_SELECTION = "tag:smoke,tag:jei"
+# Where a single-mod instance deliberately runs less than that pair: EMI owns Ctrl+F
+# itself, so its instance cannot use JEI's focus scenarios and asserts the smoke pair
+# alone until its own scenario exists.
+MOD_ENV_SELECTION_OVERRIDES = {"1.21.1-neoforge-emi": "tag:smoke"}
 
 
 def mod_env_row(name: str) -> str | None:
@@ -347,7 +351,8 @@ class EnvParsingTest(unittest.TestCase):
         }
         standalone.update({env.name: mod_env_row(env.name) for env in envs.load_all()
                            if mod_env_row(env.name)})
-        expected.update({env.name: MOD_ENV_SELECTION for env in envs.load_all() if mod_env_row(env.name)})
+        expected.update({env.name: MOD_ENV_SELECTION_OVERRIDES.get(env.name, MOD_ENV_SELECTION)
+                         for env in envs.load_all() if mod_env_row(env.name)})
         rows = {env.name: env for env in envs.load_all() if env.uitest is not None}
         self.assertEqual(sorted(rows), sorted(expected),
                          "a row that runs the in-client harness is a decision, not a default")
