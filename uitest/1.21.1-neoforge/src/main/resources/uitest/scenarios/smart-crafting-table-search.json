@@ -1,0 +1,23 @@
+{
+  "name": "smart-crafting-table-search",
+  "group": "smart-crafting-table",
+  "tags": ["smart-crafting-table"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "smart-crafting-table: the open bind only fires while the player carries the portable table, and the menu lists only recipes craftable from the inventory"},
+    {"do": "give", "item": "smartcrafting:portable_smart_crafting_table"},
+    {"do": "give", "item": "minecraft:oak_planks", "count": 64},
+    {"do": "log", "text": "smart-crafting-table: open through key.smartcrafting.open_smart_crafting_menu (default C)"},
+    {"do": "press_bind", "bind": "key.smartcrafting.open_smart_crafting_menu"},
+    {"do": "wait_until_screen", "screen": "com.benbenlaw.smartcrafting.screen.SmartCraftingScreen"},
+    {"do": "wait_ms", "ms": 1000},
+    {"do": "log", "text": "smart-crafting-table: init() focuses the search box and charTyped forwards to it; type the pinyin of 箱子 (xiangzi)"},
+    {"do": "type", "text": "xiangzi"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "箱", "candidate_contains": "xiangzi", "expect": true, "within_ms": 4000},
+    {"do": "screenshot", "label": "filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

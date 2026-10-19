@@ -1,0 +1,26 @@
+{
+  "name": "industrialupgrade-book-search",
+  "group": "industrialupgrade",
+  "tags": ["industrialupgrade"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "industrialupgrade: the guide book from slot 0 opens ScreenBook through Item.use on the server; right-clicking in the air is enough"},
+    {"do": "give", "item": "industrialupgrade:book/guide_book"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "press_bind", "bind": "hotbar.1"},
+    {"do": "press_bind", "bind": "use"},
+    {"do": "wait_until_screen", "screen": "com.denfop.items.book.ScreenBook"},
+    {"do": "wait_ms", "ms": 1000},
+    {"do": "log", "text": "industrialupgrade: Ctrl+F is the screen's own focus chord (hasControlDown() && key == 70), and charTyped forwards only while the box is focused"},
+    {"do": "key", "key": "f", "modifiers": ["ctrl"]},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "industrialupgrade: type the pinyin of 开始 (kai shi), the first quest of the guide book's main tab"},
+    {"do": "type", "text": "kaishi"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "开始", "candidate_contains": "kaishi", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "book-filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

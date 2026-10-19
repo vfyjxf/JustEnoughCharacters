@@ -19,10 +19,18 @@ from . import support
 # below derives their expectation from the name instead of listing 124 of them.
 MOD_ENV_RE = re.compile(r"^1\.21\.1-(neoforge|fabric)-[a-z0-9._-]+$")
 MOD_ENV_SELECTION = "tag:smoke,tag:jei"
-# Where a single-mod instance deliberately runs less than that pair: EMI owns Ctrl+F
-# itself, so its instance cannot use JEI's focus scenarios and asserts the smoke pair
-# alone until its own scenario exists.
-MOD_ENV_SELECTION_OVERRIDES = {"1.21.1-neoforge-emi": "tag:smoke,tag:emi"}
+# Rows that deliberately differ from that pair: EMI owns Ctrl+F itself, so its
+# instance runs its own scenario instead of JEI's; a row with a per-mod scenario
+# runs the pair plus that scenario's tag.
+MOD_ENV_SELECTION_OVERRIDES = {
+    "1.21.1-neoforge-emi": "tag:smoke,tag:emi",
+    "1.21.1-neoforge-smart-crafting-table": "tag:smoke,tag:jei,tag:smart-crafting-table",
+    "1.21.1-neoforge-explorers-compass-enhance": "tag:smoke,tag:jei,tag:explorers-compass-enhance",
+    "1.21.1-neoforge-project-mmo": "tag:smoke,tag:jei,tag:project-mmo",
+    "1.21.1-neoforge-industrialupgrade": "tag:smoke,tag:jei,tag:industrialupgrade",
+    "1.21.1-neoforge-projecte": "tag:smoke,tag:jei,tag:projecte",
+    "1.21.1-neoforge-lucid-advancements": "tag:smoke,tag:jei,tag:lucid-advancements",
+}
 
 
 def mod_env_row(name: str) -> str | None:

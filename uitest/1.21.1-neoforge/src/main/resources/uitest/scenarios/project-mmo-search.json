@@ -1,0 +1,23 @@
+{
+  "name": "project-mmo-search",
+  "group": "project-mmo",
+  "tags": ["project-mmo"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 180000,
+  "steps": [
+    {"do": "log", "text": "project-mmo: key.pmmo.openMenu (default P) opens the Glossary only while no screen is up"},
+    {"do": "press_bind", "bind": "key.pmmo.openMenu"},
+    {"do": "wait_until_screen", "screen": "harmonised.pmmo.client.gui.glossary.Glossary"},
+    {"do": "wait_ms", "ms": 6000},
+    {"do": "log", "text": "project-mmo: the search bar is the first widget the glossary layout registers, so one Tab focuses it"},
+    {"do": "key", "key": "tab"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "project-mmo: type the pinyin of 石头 (shi tou); the item panels compare their display name with the typed filter"},
+    {"do": "type", "text": "shitou"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "石", "candidate_contains": "shitou", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

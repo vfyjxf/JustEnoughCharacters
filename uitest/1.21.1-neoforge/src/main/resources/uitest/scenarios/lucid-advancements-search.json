@@ -1,0 +1,25 @@
+{
+  "name": "lucid-advancements-search",
+  "group": "lucid-advancements",
+  "tags": ["lucid-advancements"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "lucid-advancements: the vanilla advancements bind opens AdvancementsScreen, whose init the mod's mixin replaces with LucidAdvancementsScreen"},
+    {"do": "press_bind", "bind": "advancements"},
+    {"do": "wait_until_screen", "screen": "com.niixlabs.lucidadvancements.client.gui.screen.LucidAdvancementsScreen"},
+    {"do": "wait_ms", "ms": 1000},
+    {"do": "log", "text": "lucid-advancements: the top bar registers a settings button, a tracked-filter button and then the search box, and nothing takes the initial focus, so Tab reaches the search box on the third press"},
+    {"do": "key", "key": "tab"},
+    {"do": "key", "key": "tab"},
+    {"do": "key", "key": "tab"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "lucid-advancements: type the pinyin of 石器时代 (shi qi shi dai), the story tab's mine_stone advancement; a non-empty query makes the screen search every tab"},
+    {"do": "type", "text": "shiqi"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "石器时代", "candidate_contains": "shiqi", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

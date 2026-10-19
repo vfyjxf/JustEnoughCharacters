@@ -1,0 +1,30 @@
+{
+  "name": "projecte-transmutation-search",
+  "group": "projecte",
+  "tags": ["projecte"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "projecte: the transmutation tablet from slot 0 opens GUITransmutation through Item.use on the server"},
+    {"do": "give", "item": "projecte:transmutation_tablet"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "press_bind", "bind": "hotbar.1"},
+    {"do": "press_bind", "bind": "use"},
+    {"do": "wait_until_screen", "screen": "moze_intel.projecte.gameObjs.gui.GUITransmutation"},
+    {"do": "wait_ms", "ms": 1000},
+    {"do": "log", "text": "projecte: a fresh player has no EMC and no knowledge, so the list is empty until the mod's own commands seed it"},
+    {"do": "run_server_command", "text": "projecte emc set @p 1000000"},
+    {"do": "run_server_command", "text": "projecte knowledge learn @p minecraft:stone"},
+    {"do": "wait_ms", "ms": 1000},
+    {"do": "log", "text": "projecte: the filter box is the screen's first widget and is not auto-focused, so one Tab focuses it"},
+    {"do": "key", "key": "tab"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "projecte: type the pinyin of 石头 (shi tou); SearchQueryParser compares the stack's hover name with the typed filter"},
+    {"do": "type", "text": "shitou"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "石", "candidate_contains": "shitou", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "transmutation-filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

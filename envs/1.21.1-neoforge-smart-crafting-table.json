@@ -16,7 +16,7 @@
     "version": 21
   },
   "uitest": {
-    "selection": "tag:smoke,tag:jei",
+    "selection": "tag:smoke,tag:jei,tag:smart-crafting-table",
     "project": "uitest/1.21.1-neoforge"
   },
   "jech": {

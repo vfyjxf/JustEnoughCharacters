@@ -1,0 +1,22 @@
+{
+  "name": "explorers-compass-search",
+  "group": "explorers-compass-enhance",
+  "tags": ["explorers-compass-enhance"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "explorers-compass: the give lands in the first empty main-inventory slot, which is hotbar 1; right-clicking in the air runs Item.use on the client, which opens the compass screen"},
+    {"do": "give", "item": "explorerscompass:explorerscompass"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "press_bind", "bind": "hotbar.1"},
+    {"do": "press_bind", "bind": "use"},
+    {"do": "wait_until_screen", "screen": "com.chaosthedude.explorerscompass.gui.ExplorersCompassScreen"},
+    {"do": "wait_ms", "ms": 3000},
+    {"do": "log", "text": "explorers-compass: init() sets the initial focus to its search field; the server sync of allowed structures rebuilds the documents, so type the pinyin of 平原村庄 (ping yuan cun zhuang)"},
+    {"do": "type", "text": "pingyuan"},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "平原村庄", "candidate_contains": "pingyuan", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}
