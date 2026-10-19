@@ -52,15 +52,15 @@
       ],
       "via": "dev-classpath",
       "describe": {
-        "version": "owo-lib-0.12.15.4+1.21.jar"
+        "version": "owo-lib-neoforge-0.12.15.6-beta.1+1.21.jar"
       },
       "pin": {
-        "versionId": "JB1fLQnc",
-        "filename": "owo-lib-0.12.15.4+1.21.jar",
-        "downloadUrl": "https://cdn.modrinth.com/data/ccKDOlHs/versions/JB1fLQnc/owo-lib-0.12.15.4%2B1.21.jar",
-        "sha1": "45725e6d33b624e565a7a6e5d3627af40814288d",
-        "sha512": "b9c79035c912ef043722f2a1f0bc0166e0ca047ea5237a86f23198dea487289e0a0f92a96e46bd683ffc39e4190b95450d13456b14f6280587635b51c9393a1b",
-        "size": 1183559
+        "versionId": "wbdHEItB",
+        "filename": "owo-lib-neoforge-0.12.15.6-beta.1+1.21.jar",
+        "downloadUrl": "https://cdn.modrinth.com/data/ccKDOlHs/versions/wbdHEItB/owo-lib-neoforge-0.12.15.6-beta.1%2B1.21.jar",
+        "sha1": "3a7f843ce3a4d24f8765a74bc5dde914b316b992",
+        "sha512": "fc843ef350c4af6748d9fd6ecd3c28f96262cf46d46a8329029f49ea4f9eb87238113a8a415e8bba2c4f346c718bf450194f6f5823dfbf1ae7312529a81c3e5c",
+        "size": 1223197
       }
     }
   ],

@@ -52,15 +52,15 @@
       ],
       "via": "dev-classpath",
       "describe": {
-        "version": "refinedstorage-fabric-2.0.9.jar"
+        "version": "refinedstorage-neoforge-2.0.9.jar"
       },
       "pin": {
-        "versionId": "PMoDGaFz",
-        "filename": "refinedstorage-fabric-2.0.9.jar",
-        "downloadUrl": "https://cdn.modrinth.com/data/KDvYkUg3/versions/PMoDGaFz/refinedstorage-fabric-2.0.9.jar",
-        "sha1": "0be595b8c0d96010172df81a91fbb46e4f1a71db",
-        "sha512": "d19c3091c71b1ac5d987d6c6b68b7081ebd145f40c10e25b7054d528f8fc2b3a873adb5bd34baeca0fc1516d03fdf5d66f635238626c86b87663277a9c361e78",
-        "size": 5354096
+        "versionId": "lHHiI26k",
+        "filename": "refinedstorage-neoforge-2.0.9.jar",
+        "downloadUrl": "https://cdn.modrinth.com/data/KDvYkUg3/versions/lHHiI26k/refinedstorage-neoforge-2.0.9.jar",
+        "sha1": "59d8e734ccb6eaab4cdf04093c55872af7a3e23a",
+        "sha512": "b98a938b8af859f1952bfb35fb6db712835a7dead88fa15258ac0f4f06b26b08ebfa49fd9a35b2c81f7a745b3cd4370ced98c242d0fe7473ba019d92da8f6c57",
+        "size": 4360871
       }
     }
   ],
