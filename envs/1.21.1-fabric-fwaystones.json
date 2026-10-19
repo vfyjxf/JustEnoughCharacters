@@ -82,6 +82,26 @@
         "sha512": "6e6237b40f34f68ea68dadde0f53fdee2885a06f0935a8d928e54626b7bea43cc4972be5cc884ffe46aff469802779daff432a59b5990d7d612afcb38494987a",
         "size": 445684
       }
+    },
+    {
+      "name": "owo-lib",
+      "source": "modrinth",
+      "slug": "owo-lib",
+      "tags": [
+        "harness"
+      ],
+      "via": "dev-classpath",
+      "describe": {
+        "version": "owo-lib-0.12.15.4+1.21.jar"
+      },
+      "pin": {
+        "versionId": "JB1fLQnc",
+        "filename": "owo-lib-0.12.15.4+1.21.jar",
+        "downloadUrl": "https://cdn.modrinth.com/data/ccKDOlHs/versions/JB1fLQnc/owo-lib-0.12.15.4%2B1.21.jar",
+        "sha1": "45725e6d33b624e565a7a6e5d3627af40814288d",
+        "sha512": "b9c79035c912ef043722f2a1f0bc0166e0ca047ea5237a86f23198dea487289e0a0f92a96e46bd683ffc39e4190b95450d13456b14f6280587635b51c9393a1b",
+        "size": 1183559
+      }
     }
   ],
   "checks": [
