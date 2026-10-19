@@ -1,5 +1,5 @@
 {
-  "_comment": "1.21.1 fabric 单 mod 实例：Amecs（slug amecs）。行沿用 envs/1.21.1-fabric.json 的 uitest/1.21.1-fabric，不新增 Gradle 行；jei 与平台库仍由行自己加载，这一条目标 mod 由 jt 从它的 pin 下载后交给行；依赖由 tools/mod_deps.py 补齐（补进来的同样打 harness 标签）。",
+  "_comment": "1.21.1 fabric 单 mod 实例：Amecs（slug amecs）。行沿用 envs/1.21.1-fabric.json 的 uitest/1.21.1-fabric，不新增 Gradle 行；行只加载 jech 与平台库，这一条目标 mod 由 jt 从它的 pin 下载后交给行；依赖由 tools/mod_deps.py 补齐（补进来的同样打 harness 标签）。",
   "name": "1.21.1-fabric-amecs",
   "tags": [
     "1211",
@@ -16,7 +16,7 @@
     "version": 21
   },
   "uitest": {
-    "selection": "tag:smoke,tag:jei",
+    "selection": "tag:smoke",
     "project": "uitest/1.21.1-fabric",
     "options": {
       "version": "3955",
@@ -31,22 +31,6 @@
     "via": "dev-classpath"
   },
   "mods": [
-    {
-      "name": "jei",
-      "source": "curseforge",
-      "slug": "jei",
-      "via": "dev-classpath",
-      "describe": {
-        "version": "19.37.0.362"
-      },
-      "pin": {
-        "fileId": 8413369,
-        "filename": "jei-1.21.1-fabric-19.37.0.362.jar",
-        "downloadUrl": "https://edge.forgecdn.net/files/8413/369/jei-1.21.1-fabric-19.37.0.362.jar",
-        "sha1": "1765e49042f562a94acbbd146cf32259e6803c49",
-        "size": 1658611
-      }
-    },
     {
       "name": "fabric-api",
       "source": "curseforge",
@@ -84,11 +68,6 @@
     }
   ],
   "checks": [
-    {
-      "type": "log_contains",
-      "value": "Registering JEI pinyin search storage",
-      "name": "jei-storage-registered"
-    },
     {
       "type": "log_not_contains",
       "value": "Could not find targets.json. JechTransformer will not be loaded.",

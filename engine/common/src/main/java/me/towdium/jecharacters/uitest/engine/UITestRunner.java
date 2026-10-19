@@ -771,6 +771,14 @@ public final class UITestRunner {
             config.windowHeightOrDefault(),
             config.headless()
         );
+        log.info(
+            "pinned client draws {}x{} framebuffer at gui scale {}, so the gui space is {}x{}",
+            client.renderTargetWidth(),
+            client.renderTargetHeight(),
+            config.guiScale(),
+            client.renderTargetWidth() / Math.max(1, config.guiScale()),
+            client.renderTargetHeight() / Math.max(1, config.guiScale())
+        );
     }
 
     // endregion

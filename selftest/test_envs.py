@@ -14,23 +14,27 @@ from lib.errors import EnvSchemaError
 from . import support
 
 # The single-mod instances (`tools/gen_envs.py`): one target mod each, named after
-# its loader and the plan row's slug, all on the same row and the same selection as
-# their line's baseline env. They are generated from the plan's roster, so the gate
-# below derives their expectation from the name instead of listing 124 of them.
+# its loader and the plan row's slug, all on the same row as their line's baseline env.
+# Each installs only its own target mod and that mod's dependencies — JEI is a target
+# mod an env declares, never the row's ambient classpath — so it runs the smoke tag alone.
 MOD_ENV_RE = re.compile(r"^1\.21\.1-(neoforge|fabric)-[a-z0-9._-]+$")
-MOD_ENV_SELECTION = "tag:smoke,tag:jei"
-# Rows that deliberately differ from that pair: EMI owns Ctrl+F itself, so its
+MOD_ENV_SELECTION = "tag:smoke"
+# Rows that deliberately differ from that: EMI owns Ctrl+F itself, so its
 # instance runs its own scenario instead of JEI's; a row with a per-mod scenario
-# runs the pair plus that scenario's tag.
+# runs the smoke tag plus that scenario's tag.
 MOD_ENV_SELECTION_OVERRIDES = {
     "1.21.1-neoforge-emi": "tag:smoke,tag:emi",
-    "1.21.1-neoforge-smart-crafting-table": "tag:smoke,tag:jei,tag:smart-crafting-table",
-    "1.21.1-neoforge-explorers-compass-enhance": "tag:smoke,tag:jei,tag:explorers-compass-enhance",
-    "1.21.1-neoforge-project-mmo": "tag:smoke,tag:jei,tag:project-mmo",
-    "1.21.1-neoforge-industrialupgrade": "tag:smoke,tag:jei,tag:industrialupgrade",
-    "1.21.1-neoforge-projecte": "tag:smoke,tag:jei,tag:projecte",
-    "1.21.1-neoforge-lucid-advancements": "tag:smoke,tag:jei,tag:lucid-advancements",
+    "1.21.1-neoforge-smart-crafting-table": "tag:smoke,tag:smart-crafting-table",
+    "1.21.1-neoforge-explorers-compass-enhance": "tag:smoke,tag:explorers-compass-enhance",
+    "1.21.1-neoforge-project-mmo": "tag:smoke,tag:project-mmo",
+    "1.21.1-neoforge-industrialupgrade": "tag:smoke,tag:industrialupgrade",
+    "1.21.1-neoforge-projecte": "tag:smoke,tag:projecte",
+    "1.21.1-neoforge-lucid-advancements": "tag:smoke,tag:lucid-advancements",
 }
+# The one instance that must still install JEI: its target mod's own metadata names
+# JEI as a required dependency, so the loader refuses to start the mod without it.
+# The selection stays the smoke tag alone — JEI is a dependency here, not a target.
+JEI_DEPENDENT = {"1.21.1-neoforge-ae2-utility"}
 
 
 def mod_env_row(name: str) -> str | None:
@@ -377,6 +381,33 @@ class EnvParsingTest(unittest.TestCase):
                 self.assertIsNone(env.gradle, f"{name} carries its own launch layer")
             else:
                 self.assertIsNone(env.uitest.project, name)
+
+    def test_a_single_mod_instance_declares_only_its_own_target_mod(self):
+        """JEI is a target mod an env declares, not something a row hands every run.
+
+        A single-mod instance installs its own target mod and that mod's
+        dependencies; an ambient JEI would collide with a target that owns the same
+        key (EMI claims Ctrl+F) and turn a scenario meant for that target into an
+        assertion about JEI. The ``jei-storage-registered`` marker is JECh's JEI
+        plugin speaking, so an env without JEI cannot carry that check either. The
+        two baseline rows are the exception: they declare JEI themselves, and they
+        keep both the mod entry and the marker check their run asserts on. The
+        ``JEI_DEPENDENT`` instance is the other: it installs JEI because its target
+        mod's metadata requires it, and it still asserts no marker.
+        """
+        loaded = {env.name: env for env in envs.load_all()}
+        for name, env in loaded.items():
+            if not mod_env_row(name):
+                continue
+            if name not in JEI_DEPENDENT:
+                self.assertNotIn("jei", [mod.name for mod in env.mods], name)
+            self.assertNotIn("jei-storage-registered", [check.name for check in env.checks], name)
+        for name in ("1.21.1-neoforge", "1.21.1-fabric"):
+            env = loaded[name]
+            self.assertIn("jei", [mod.name for mod in env.mods], name)
+            marker = [check for check in env.checks if check.name == "jei-storage-registered"]
+            self.assertEqual(len(marker), 1, name)
+            self.assertEqual(marker[0].value, "Registering JEI pinyin search storage", name)
 
     def test_the_shipped_matrix_declares_a_world_only_where_it_was_measured(self):
         """``world`` is a premise about the marker, not a decoration.

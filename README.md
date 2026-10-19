@@ -134,14 +134,14 @@ schema error rather than a run that quietly launches nothing
   names a `project` runs that build's own run task — `runClientTests` on a
   NeoForge line, `runClient` on the loom and Forge lines (`lib/uitest_pipeline.py`,
   `run_task_of`) — in `uitest/<row>`, and the jars under test travel as the
-  project properties `-PjechJar` and `-PjeiJar`. The build fails closed when
-  either is missing, so a stale copy inside it can never become the thing under
-  test. The env's `java` version is the JDK that starts this Gradle; the
-  *client's* JDK is the build's own toolchain. An env that declares a `gradle`
-  block instead names a run task in the checkout, run as `./gradlew <task>` in
-  `<JT_JECH_ROOT>/<project_dir>`; `project_dir` defaults to the env's
-  `jech.project`, so the task always runs in the checkout the artifact under test
-  was built from.
+  project properties `-PjechJar` and, when the env declares one, `-PjeiJar`. The
+  build fails closed when `-PjechJar` is missing, so a stale copy inside it can
+  never become the thing under test. The env's `java` version is the JDK that
+  starts this Gradle; the *client's* JDK is the build's own toolchain. An env
+  that declares a `gradle` block instead names a run task in the checkout, run as
+  `./gradlew <task>` in `<JT_JECH_ROOT>/<project_dir>`; `project_dir` defaults to
+  the env's `jech.project`, so the task always runs in the checkout the artifact
+  under test was built from.
 * **`--no-daemon`** on every invocation: a resident Gradle daemon would keep a
   several-hundred-megabyte JVM alive between runs, and the point of the backend
   is that a run's cost ends with the run.

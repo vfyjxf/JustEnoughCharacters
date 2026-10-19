@@ -16,8 +16,9 @@ in the run output (``stage: build …`` lines the run log keeps).
 
 The jars under test are handed to the harness build as ``-PjechJar`` /
 ``-PjeiJar`` on **every** Gradle invocation, the compile included: the build's
-own script fails closed at configuration time when they are missing, which is
-what keeps a stale copy inside the build from ever being the thing under test.
+own script fails closed at configuration time when ``jechJar`` is missing and
+loads JEI only when ``jeiJar`` arrives, which is what keeps a stale copy inside
+the build from ever being the thing under test.
 An env's other mods — the ones it tags ``harness`` — travel the same way, one
 ``-PjechExtraJars`` list (see :func:`jar_arguments`).
 """

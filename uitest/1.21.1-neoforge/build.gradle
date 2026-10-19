@@ -27,10 +27,10 @@ def requireJar = { name, prop ->
     }
 }
 def jechJarFile = requireJar('jechJar', jechJarProp)
-def jeiJarFile = requireJar('jeiJar', jeiJarProp)
+def jeiJarFile = jeiJarProp.isPresent() ? files(requireJar('jeiJar', jeiJarProp)) : files()
 
 // The env's extra jars (its "harness"-tagged mods; jt passes them as -PjechExtraJars): they ride
-// the same localRuntime configuration the JECh and JEI jars do, which is what puts a jar on this
+// the same localRuntime configuration the JECh jar does, which is what puts a jar on this
 // run's classpath when the run is not told to load it from the game directory. Absent property
 // (every other env) contributes nothing, so their command lines and classpaths stay as they are.
 def jechExtraJarsProp = project.findProperty('jechExtraJars')?.toString()

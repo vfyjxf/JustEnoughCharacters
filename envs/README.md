@@ -468,7 +468,7 @@ What changes for such a row:
 The selection names the scenarios the row was measured with instead of saying
 `all`, for the same reason a row's `world` is written down: a row asserts what it
 was measured with, and a scenario added later cannot silently change that. Every
-row runs the harness today; nineteen of them run `tag:smoke,tag:jei` — the
+row runs the harness today. Nineteen of them run `tag:smoke,tag:jei` — the
 scenarios their own build ships, the JEI ones among them — and three run the
 smoke tag alone, each for a reason of its own:
 
@@ -477,7 +477,18 @@ smoke tag alone, each for a reason of its own:
 | `mv-1.16.5-fabric` | `tag:smoke` | the one row with no target mod: its build carries a single scenario and no JEI reaches the run, so it claims the smoke tag alone |
 | `mv-1.16.5-forge` | `tag:smoke` | this line's JECh jar carries no JEI plugin class, and the JEI scenarios focus JEI's search field with a measured mouse click the row has not been measured with |
 | `1.12.2-forge-hei` | `tag:smoke` | HEI answers through `IAdvancedSearchRegistry`, not through the legacy suffix-tree replacement the JEI scenarios assert on; this row claims the smoke scenarios it was measured with rather than scenarios it does not exercise |
-| every other row | `tag:smoke,tag:jei` | the scenarios its own harness build ships, the JEI ones by tag among them |
+| every row not named here or below | `tag:smoke,tag:jei` | it declares JEI, so the JEI scenarios its own harness build ships are the ones it was measured with |
+
+The 123 `1.21.1-<loader>-<slug>` single-mod instances (`tools/gen_envs.py`) are
+the third shape: each installs its own target mod and that mod's dependencies,
+and nothing else — JEI is a target mod an env declares, not something a row
+hands every run — so every one of them runs `tag:smoke` alone. The seven that
+carry a scenario of their own add that scenario's tag instead:
+`1.21.1-neoforge-emi` runs `tag:smoke,tag:emi` (EMI owns Ctrl+F, so JEI's search
+scenarios would assert on the wrong screen), and the six with their own search
+scenario — `smart-crafting-table`, `explorers-compass-enhance`, `project-mmo`,
+`industrialupgrade`, `projecte`, `lucid-advancements` — run
+`tag:smoke,tag:<their tag>`.
 
 The scenarios themselves — and the step vocabulary a scenario is written in —
 are documented next to each build's copies of them
