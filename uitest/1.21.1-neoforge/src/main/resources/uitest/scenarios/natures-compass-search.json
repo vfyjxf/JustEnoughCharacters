@@ -1,0 +1,28 @@
+{
+  "name": "natures-compass-search",
+  "group": "natures-compass",
+  "tags": ["natures-compass"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "natures-compass: the compass from slot 0 opens NaturesCompassScreen through Item.use on the client (creative), and the server's SyncPacket carries the biome keys the screen filters"},
+    {"do": "give", "item": "naturescompass:naturescompass"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "press_bind", "bind": "hotbar.1"},
+    {"do": "press_bind", "bind": "use"},
+    {"do": "wait_until_screen", "screen": "com.chaosthedude.naturescompass.gui.NaturesCompassScreen"},
+    {"do": "log", "text": "natures-compass: the GUI opens from the local use while the SyncPacket lands a moment later, and tick() rebuilds the list from NaturesCompass.allowedBiomes once after each sync, so this waits for that one rebuild before anything filters"},
+    {"do": "wait_ms", "ms": 1000},
+    {"do": "log", "text": "natures-compass: searchTextField = new TransparentTextField(font, 130, 10, 140, 20) added through addRenderableWidget and never focused by init, so one click inside its box focuses it; the biome list itself comes from the level's biome registry, not from terrain"},
+    {"do": "click", "x": 200, "y": 20},
+    {"do": "assert_focus_text", "text": null},
+    {"do": "log", "text": "natures-compass: type the pinyin of 平原; processSearchTerm compares BiomeUtils.getBiomeNameForDisplay(level, biome).toLowerCase().contains(typed) per keystroke"},
+    {"do": "type", "text": "pingyuan"},
+    {"do": "assert_focus_text", "text": "pingyuan"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "平原", "candidate_contains": "pingyuan", "expect": true, "within_ms": 4000},
+    {"do": "screenshot", "label": "filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

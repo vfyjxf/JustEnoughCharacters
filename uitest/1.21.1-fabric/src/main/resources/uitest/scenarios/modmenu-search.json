@@ -1,0 +1,31 @@
+{
+  "name": "modmenu-search",
+  "group": "modmenu",
+  "tags": ["modmenu"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "modmenu: key.modmenu.open_menu is registered unbound (InputConstants.UNKNOWN), so the only entry is the pause screen's own Mods button"},
+    {"do": "press_key", "key": "escape"},
+    {"do": "wait_until_screen", "screen": "PauseScreen"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "modmenu: MixinGameMenu replaces the Send feedback button in place (game_menu_button_style defaults to REPLACE), i.e. row 2 col 0 of PauseScreen's 2x106 grid at 214,48 with rows 70/24/24/24/24, so the Mods button is 218,146 204x20; 320,156 is inside it and left of the 324..422 Report Bugs slot"},
+    {"do": "click", "x": 320, "y": 156},
+    {"do": "wait_until_screen", "screen": "com.terraformersmc.modmenu.gui.ModsScreen"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "log", "text": "modmenu: searchBox = new EditBox(font, paneWidth/2 - boxWidth/2 - 11, 22, boxWidth, 20) with paneWidth = 640/2-8 = 312 and boxWidth = paneWidth-32-22 = 258, so it is 16..274 x 22..42 and 145,32 lands in its middle"},
+    {"do": "click", "x": 145, "y": 32},
+    {"do": "assert_focus_text", "text": null},
+    {"do": "log", "text": "modmenu: type the pinyin of 模组菜单, the mod's own zh_cn value of modmenu.nameTranslation.modmenu"},
+    {"do": "type", "text": "mozucaidan"},
+    {"do": "assert_focus_text", "text": "mozucaidan"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "log", "text": "modmenu: the box's responder reloads the list, and passesFilters compares name, then getTranslatedName(), then id with contains, so the translated name is the recorded haystack"},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "模组菜单", "candidate_contains": "mozucaidan", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "filtered"},
+    {"do": "key", "key": "escape"},
+    {"do": "wait_until_screen", "screen": "PauseScreen"},
+    {"do": "key", "key": "escape"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

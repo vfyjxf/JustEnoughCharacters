@@ -30,6 +30,12 @@ MOD_ENV_SELECTION_OVERRIDES = {
     "1.21.1-neoforge-industrialupgrade": "tag:smoke,tag:industrialupgrade",
     "1.21.1-neoforge-projecte": "tag:smoke,tag:projecte",
     "1.21.1-neoforge-lucid-advancements": "tag:smoke,tag:lucid-advancements",
+    "1.21.1-fabric-jade": "tag:smoke,tag:jade",
+    "1.21.1-neoforge-ars-zero": "tag:smoke,tag:ars-zero",
+    "1.21.1-fabric-wthit": "tag:smoke,tag:wthit",
+    "1.21.1-neoforge-keyboard-wizard-ce": "tag:smoke,tag:keyboard-wizard-ce",
+    "1.21.1-fabric-modmenu": "tag:smoke,tag:modmenu",
+    "1.21.1-neoforge-natures-compass": "tag:smoke,tag:natures-compass",
 }
 # The one instance that must still install JEI: its target mod's own metadata names
 # JEI as a required dependency, so the loader refuses to start the mod without it.

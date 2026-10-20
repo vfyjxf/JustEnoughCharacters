@@ -1,0 +1,26 @@
+{
+  "name": "wthit-search",
+  "group": "wthit",
+  "tags": ["wthit"],
+  "requiresWorld": true,
+  "guiScale": 2,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "wthit: the config bind ships UNKNOWN, so the only opener is the client command, whose literal chain wailac > config > open builds WailaConfigScreen over the current screen"},
+    {"do": "command", "text": "/wailac config open"},
+    {"do": "wait_until_screen", "screen": "mcp.mobius.waila.gui.screen.WailaConfigScreen"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "wthit: ConfigScreen.keyPressed maps hasShiftDown() && keyCode 70 to ConfigListWidget.search(), which selects the search row and calls setFocused on that row's real vanilla EditBox, so the keyboard path focuses the box without a click"},
+    {"do": "key", "key": "f", "modifiers": ["shift"]},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "assert_focus_text", "text": null},
+    {"do": "log", "text": "wthit: type the pinyin of 常规 (config.waila.general, the first CategoryEntry); ConfigListWidget$Entry.match builds the search key from the entry titles and tests each term with StringUtils.containsIgnoreCase(searchKey, term), i.e. containsSeq with the Chinese key as the query side"},
+    {"do": "type", "text": "changgui"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "assert_focus_text", "text": "changgui"},
+    {"do": "assert_match_recorded", "method": "containsSeq", "query_contains": "常规", "candidate_contains": "changgui", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "config-filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "keyboard-wizard-search",
+  "group": "keyboard-wizard-ce",
+  "tags": ["keyboard-wizard-ce"],
+  "requiresWorld": true,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "keyboard-wizard-ce: key.keyboard_wizard_ce.openKeyWizard (KEYSYM 296, F7) opens KeyWizardScreen, whose filterBindingsByName tests I18n.get(mapping.getName()).toLowerCase().contains(typed token)"},
+    {"do": "press_bind", "bind": "key.keyboard_wizard_ce.openKeyWizard"},
+    {"do": "wait_until_screen", "screen": "committee.nova.mkw.gui.KeyWizardScreen"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "log", "text": "keyboard-wizard-ce: searchBar = new EditBox(font, 10, height-20, maxNameWidth+20, 14) added through addRenderableWidget and never focused by init, so on the run's 640x360 GUI space it is 10..10+w x 340..354; 25,347 is inside it for any w the key names produce"},
+    {"do": "click", "x": 25, "y": 347},
+    {"do": "assert_focus_text", "text": null},
+    {"do": "log", "text": "keyboard-wizard-ce: type the pinyin of key.forward's zh_cn name; the versions disagree on whether it reads 前进 or 向前移动, and both contain 前, so the query and the assertion stay on that shared character"},
+    {"do": "type", "text": "qian"},
+    {"do": "assert_focus_text", "text": "qian"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "keyboard-wizard-ce: the list re-filters from KeyWizardScreen.tick() -> KeyBindingListWidget.updateList() whenever the box's value changes, so the recorder fills within a couple of ticks"},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "前", "candidate_contains": "qian", "expect": true, "within_ms": 4000},
+    {"do": "screenshot", "label": "filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}

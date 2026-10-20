@@ -1,0 +1,28 @@
+{
+  "name": "jade-search",
+  "group": "jade",
+  "tags": ["jade"],
+  "requiresWorld": true,
+  "guiScale": 2,
+  "scenarioTimeoutMs": 120000,
+  "steps": [
+    {"do": "log", "text": "jade: open the config through the mod's own bind, registered as key.jade.config (ClientProxy.registerKeyBinding builds key.jade. + config, default KP_0) and consumed by JadeClient.onKeyPressed into HomeConfigScreen"},
+    {"do": "press_bind", "bind": "key.jade.config"},
+    {"do": "wait_until_screen", "screen": "snownee.jade.gui.HomeConfigScreen"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "jade: HomeConfigScreen.init places gui.jade.jade_settings at x width/2-5-maxWidth..width/2-5, y height/2-10..+20 with maxWidth min(max(100,text+8),240,width/2-40) = 100 at 640x360, so (215,170)-(315,190); (265,180) is its centre and its onPress opens WailaConfigScreen"},
+    {"do": "click", "x": 265, "y": 180},
+    {"do": "wait_until_screen", "screen": "snownee.jade.gui.WailaConfigScreen"},
+    {"do": "wait_ms", "ms": 300},
+    {"do": "log", "text": "jade: the search box is BaseOptionsScreen.init's NotUglyEditBox at (0,0,120,18); it overrides isMouseOver but not mouseClicked, so a click cannot focus it, and BaseOptionsScreen$1 refuses the InitialFocus event - one Tab is the route: the nav list before it refuses Tab (its entries keep the default null nextFocusPath) and the box accepts it"},
+    {"do": "key", "key": "tab"},
+    {"do": "wait_ms", "ms": 200},
+    {"do": "log", "text": "jade: type the pinyin of 显示提示框 (config.jade.display_tooltip); the box's responder is OptionsList.updateSearch, which lowercases the typed text and tests each entry message with message.contains(term). The box is a hand-rolled AbstractWidget, not an EditBox, so assert_focus_text cannot read it and the recorded match is the proof it took the text"},
+    {"do": "type", "text": "tishi"},
+    {"do": "wait_ms", "ms": 500},
+    {"do": "assert_match_recorded", "method": "contains", "query_contains": "提示", "candidate_contains": "tishi", "expect": true, "within_ms": 5000},
+    {"do": "screenshot", "label": "config-filtered"},
+    {"do": "close_screen"},
+    {"do": "wait_until_screen", "screen": null}
+  ]
+}
